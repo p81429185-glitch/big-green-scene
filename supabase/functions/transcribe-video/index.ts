@@ -41,54 +41,15 @@ serve(async (req) => {
       });
     }
 
-    // Check file size (~5GB limit)
-    if (video.size > 5 * 1024 * 1024 * 1024) {
-      return new Response(
-        JSON.stringify({ error: "Plik jest za duży (max 5GB)" }),
-        {
-          status: 413,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Download video file
-    const { data: fileData, error: downloadError } = await supabase.storage
+    // Get public URL for the video
+    const { data: urlData } = supabase.storage
       .from("videos")
-      .download(video.storage_path);
+      .getPublicUrl(video.storage_path);
 
-    if (downloadError || !fileData) {
-      console.error("Download error:", downloadError);
-      return new Response(
-        JSON.stringify({ error: "Failed to download video" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    const publicUrl = urlData.publicUrl;
+    console.log("Using public video URL:", publicUrl);
 
-    // Convert to base64
-    const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let binary = "";
-    for (let i = 0; i < uint8Array.length; i++) {
-      binary += String.fromCharCode(uint8Array[i]);
-    }
-    const base64Video = btoa(binary);
-
-    // Determine MIME type from file extension
-    const ext = video.storage_path.split(".").pop()?.toLowerCase() || "mp4";
-    const mimeMap: Record<string, string> = {
-      mp4: "video/mp4",
-      webm: "video/webm",
-      mov: "video/quicktime",
-      avi: "video/x-msvideo",
-      mkv: "video/x-matroska",
-    };
-    const mimeType = mimeMap[ext] || "video/mp4";
-
-    // Call Lovable AI Gateway with video
+    // Call Lovable AI Gateway with video URL (no download needed)
     const aiResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -110,7 +71,7 @@ serve(async (req) => {
                 {
                   type: "image_url",
                   image_url: {
-                    url: `data:${mimeType};base64,${base64Video}`,
+                    url: publicUrl,
                   },
                 },
               ],
@@ -127,28 +88,19 @@ serve(async (req) => {
       if (aiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: "Zbyt wiele żądań. Spróbuj ponownie za chwilę." }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (aiResponse.status === 402) {
         return new Response(
           JSON.stringify({ error: "Brak środków na koncie AI. Doładuj kredyty." }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       return new Response(
         JSON.stringify({ error: "Błąd podczas transkrypcji" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -172,13 +124,8 @@ serve(async (req) => {
   } catch (e) {
     console.error("Transcribe error:", e);
     return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
