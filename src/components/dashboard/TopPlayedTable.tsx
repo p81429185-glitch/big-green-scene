@@ -57,6 +57,15 @@ const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
             <TableRow
               key={video.id}
               className="cursor-pointer hover:bg-muted/50"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", video.id);
+                e.dataTransfer.effectAllowed = "move";
+                (e.currentTarget as HTMLElement).style.opacity = "0.5";
+              }}
+              onDragEnd={(e) => {
+                (e.currentTarget as HTMLElement).style.opacity = "1";
+              }}
               onClick={() => navigate(`/video/${video.id}`)}
             >
               <TableCell>

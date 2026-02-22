@@ -37,6 +37,7 @@ interface Props {
   onDeleteFolder: (id: string) => void;
   activeView: ViewType;
   onViewChange: (view: ViewType) => void;
+  onDropVideo?: (videoId: string, folderId: string | null) => void;
 }
 
 const viewMap: Record<string, ViewType> = {
@@ -46,7 +47,7 @@ const viewMap: Record<string, ViewType> = {
   Analityka: "analytics",
 };
 
-const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange }: Props) => {
+const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -72,10 +73,14 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
         {navItems.map((item) => {
           const view = viewMap[item.label];
           const isActive = view ? activeView === view && currentFolderId === null : false;
+          const isHome = item.label === "Home";
           return (
             <button
               key={item.label}
               onClick={() => { if (view) onViewChange(view); }}
+              onDragOver={isHome ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; e.currentTarget.classList.add("bg-primary/20"); } : undefined}
+              onDragLeave={isHome ? (e) => { e.currentTarget.classList.remove("bg-primary/20"); } : undefined}
+              onDrop={isHome ? (e) => { e.preventDefault(); e.currentTarget.classList.remove("bg-primary/20"); const vid = e.dataTransfer.getData("text/plain"); if (vid && onDropVideo) onDropVideo(vid, null); } : undefined}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-sidebar-accent text-sidebar-primary"
@@ -98,6 +103,7 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
               currentFolderId={currentFolderId}
               onFolderSelect={onFolderSelect}
               onDeleteFolder={onDeleteFolder}
+              onDropVideo={onDropVideo}
             />
           </div>
         )}
@@ -135,6 +141,7 @@ const FolderTree = ({
   currentFolderId,
   onFolderSelect,
   onDeleteFolder,
+  onDropVideo,
 }: {
   folders: FolderItem[];
   parentId: string | null;
@@ -142,6 +149,7 @@ const FolderTree = ({
   currentFolderId: string | null;
   onFolderSelect: (id: string | null) => void;
   onDeleteFolder: (id: string) => void;
+  onDropVideo?: (videoId: string, folderId: string | null) => void;
 }) => {
   const children = folders.filter((f) => (f.parent_id ?? null) === parentId);
   if (children.length === 0) return null;
@@ -160,6 +168,7 @@ const FolderTree = ({
             currentFolderId={currentFolderId}
             onFolderSelect={onFolderSelect}
             onDeleteFolder={onDeleteFolder}
+            onDropVideo={onDropVideo}
           />
         );
       })}
@@ -175,6 +184,7 @@ const FolderTreeItem = ({
   currentFolderId,
   onFolderSelect,
   onDeleteFolder,
+  onDropVideo,
 }: {
   folder: FolderItem;
   folders: FolderItem[];
@@ -183,18 +193,36 @@ const FolderTreeItem = ({
   currentFolderId: string | null;
   onFolderSelect: (id: string | null) => void;
   onDeleteFolder: (id: string) => void;
+  onDropVideo?: (videoId: string, folderId: string | null) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const isActive = currentFolderId === folder.id;
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOver(true);
+  };
+  const handleDragLeave = () => setDragOver(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const videoId = e.dataTransfer.getData("text/plain");
+    if (videoId && onDropVideo) onDropVideo(videoId, folder.id);
+  };
 
   if (!hasChildren) {
     return (
       <div
         className={`group flex items-center gap-2 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-          isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+          dragOver ? "bg-primary/20 ring-2 ring-primary/40" : isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
         }`}
         style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: 12 }}
         onClick={() => onFolderSelect(folder.id)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <Folder className="h-4 w-4 shrink-0" />
         <span className="truncate flex-1">{folder.name}</span>
@@ -210,9 +238,12 @@ const FolderTreeItem = ({
     <Collapsible open={expanded} onOpenChange={setExpanded}>
       <div
         className={`group flex items-center gap-1 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-          isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+          dragOver ? "bg-primary/20 ring-2 ring-primary/40" : isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
         }`}
         style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: 12 }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <CollapsibleTrigger asChild>
           <button className="shrink-0 p-0.5" onClick={(e) => e.stopPropagation()}>
@@ -229,13 +260,14 @@ const FolderTreeItem = ({
         </Button>
       </div>
       <CollapsibleContent>
-        <FolderTree
+          <FolderTree
           folders={folders}
           parentId={folder.id}
           depth={depth + 1}
           currentFolderId={currentFolderId}
           onFolderSelect={onFolderSelect}
           onDeleteFolder={onDeleteFolder}
+          onDropVideo={onDropVideo}
         />
       </CollapsibleContent>
     </Collapsible>
