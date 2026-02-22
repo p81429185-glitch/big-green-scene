@@ -14,6 +14,9 @@ import {
   Pencil,
   FileVideo,
   MessageSquare,
+  FileText,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +30,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import EmbedDialog from "@/components/dashboard/EmbedDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +45,7 @@ interface Video {
   plays: number;
   created_at: string;
   folder_id: string | null;
+  transcription: string | null;
 }
 
 interface Folder {
@@ -70,6 +75,8 @@ const VideoPlayer = () => {
   const [loading, setLoading] = useState(true);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [embedOpen, setEmbedOpen] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcription, setTranscription] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -88,6 +95,7 @@ const VideoPlayer = () => {
 
       const v = data as Video;
       setVideo(v);
+      setTranscription(v.transcription ?? null);
 
       if (v.folder_id) {
         const { data: folderData } = await supabase
@@ -113,6 +121,30 @@ const VideoPlayer = () => {
     toast.success("Link skopiowany do schowka");
   };
 
+  const handleTranscribe = async () => {
+    if (!id) return;
+    setTranscribing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("transcribe-video", {
+        body: { videoId: id },
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setTranscription(data.transcription);
+      toast.success("Transkrypcja zakończona");
+    } catch (e: any) {
+      console.error("Transcription error:", e);
+      toast.error("Błąd podczas transkrypcji");
+    } finally {
+      setTranscribing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -162,7 +194,7 @@ const VideoPlayer = () => {
           </BreadcrumbList>
         </Breadcrumb>
 
-        {/* Header row: title + action buttons */}
+        {/* Header row */}
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl font-bold tracking-tight truncate">{video.title}</h1>
           <div className="flex items-center gap-2 shrink-0">
@@ -215,6 +247,10 @@ const VideoPlayer = () => {
               <Tabs defaultValue="details" className="h-full flex flex-col">
                 <TabsList className="w-full rounded-none border-b border-border bg-transparent px-2 pt-2">
                   <TabsTrigger value="details" className="flex-1">Szczegóły</TabsTrigger>
+                  <TabsTrigger value="transcription" className="flex-1">
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    Transkrypcja
+                  </TabsTrigger>
                   <TabsTrigger value="comments" className="flex-1">Komentarze</TabsTrigger>
                 </TabsList>
 
@@ -256,6 +292,40 @@ const VideoPlayer = () => {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="transcription" className="flex-1 p-4">
+                  {transcribing ? (
+                    <div className="flex flex-col items-center justify-center h-32 gap-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">Trwa transkrypcja...</p>
+                      <p className="text-xs text-muted-foreground">To może potrwać do 60 sekund</p>
+                    </div>
+                  ) : transcription ? (
+                    <div className="space-y-3">
+                      <ScrollArea className="h-[300px]">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{transcription}</p>
+                      </ScrollArea>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTranscribe}
+                        className="w-full"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-1.5" />
+                        Transkrybuj ponownie
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 gap-3">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Brak transkrypcji</p>
+                      <Button size="sm" onClick={handleTranscribe}>
+                        <FileText className="h-4 w-4 mr-1.5" />
+                        Transkrybuj
+                      </Button>
+                    </div>
+                  )}
+                </TabsContent>
+
                 <TabsContent value="comments" className="flex-1 p-4">
                   <div className="flex flex-col items-center justify-center h-32 text-muted-foreground gap-2">
                     <MessageSquare className="h-8 w-8" />
@@ -274,6 +344,7 @@ const VideoPlayer = () => {
         onOpenChange={setEmbedOpen}
         videoUrl={videoUrl}
         thumbnailUrl={video.thumbnail_url}
+        transcription={transcription}
       />
     </div>
   );

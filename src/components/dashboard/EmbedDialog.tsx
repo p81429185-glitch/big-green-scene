@@ -38,6 +38,7 @@ interface EmbedDialogProps {
   onOpenChange: (open: boolean) => void;
   videoUrl: string;
   thumbnailUrl: string | null;
+  transcription?: string | null;
 }
 
 const EmbedDialog = ({
@@ -45,6 +46,7 @@ const EmbedDialog = ({
   onOpenChange,
   videoUrl,
   thumbnailUrl,
+  transcription,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
@@ -420,7 +422,32 @@ const EmbedDialog = ({
             </TabsContent>
 
             <TabsContent value="transcript" className="mt-0">
-              {placeholderJsx("Osadzanie transkrypcji")}
+              {transcription ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Skopiuj transkrypcję do osadzenia na stronie:
+                  </p>
+                  <div className="bg-muted rounded-md p-3 max-h-[300px] overflow-y-auto">
+                    <pre className="text-xs whitespace-pre-wrap select-all">{transcription}</pre>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(transcription);
+                      toast.success("Transkrypcja skopiowana");
+                    }}
+                  >
+                    Kopiuj transkrypcję
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+                  <FileText className="h-8 w-8" />
+                  <p className="text-sm font-medium">Brak transkrypcji</p>
+                  <p className="text-xs">Najpierw wykonaj transkrypcję na stronie wideo</p>
+                </div>
+              )}
             </TabsContent>
           </div>
         </Tabs>
