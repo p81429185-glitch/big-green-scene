@@ -23,7 +23,8 @@ const Dashboard = () => {
   const [bannerVisible, setBannerVisible] = useState(true);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const { videos, folders, loading, uploadVideo, deleteVideo, createFolder, deleteFolder } = useVideoStore();
+  const [activeView, setActiveView] = useState<"home" | "favorites" | "library">("home");
+  const { videos, folders, loading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder } = useVideoStore();
 
   const {
     queue, minimized, setMinimized, addFiles, clearQueue,
@@ -34,9 +35,13 @@ const Dashboard = () => {
     if (!isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, navigate]);
 
-  const filteredVideos = currentFolderId
-    ? videos.filter((v) => v.folder_id === currentFolderId)
-    : videos;
+  const filteredVideos = activeView === "favorites"
+    ? videos.filter((v) => v.is_favorite)
+    : activeView === "library"
+      ? videos
+      : currentFolderId
+        ? videos.filter((v) => v.folder_id === currentFolderId)
+        : videos;
 
   const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
   const lastVideo = videos.length > 0 ? videos[0] : null;
@@ -56,8 +61,10 @@ const Dashboard = () => {
         onClose={() => setSidebarOpen(false)}
         folders={folders}
         currentFolderId={currentFolderId}
-        onFolderSelect={setCurrentFolderId}
+        onFolderSelect={(id) => { setCurrentFolderId(id); setActiveView("home"); }}
         onDeleteFolder={deleteFolder}
+        activeView={activeView}
+        onViewChange={(view) => { setActiveView(view); if (view !== "home") setCurrentFolderId(null); }}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -100,7 +107,7 @@ const Dashboard = () => {
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <TopPlayedTable videos={filteredVideos} onDelete={deleteVideo} />
+                <TopPlayedTable videos={filteredVideos} onDelete={deleteVideo} onToggleFavorite={toggleFavorite} />
               </div>
               <div>
                 <RecentlyShared items={[]} />

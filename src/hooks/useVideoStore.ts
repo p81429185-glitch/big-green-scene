@@ -12,6 +12,7 @@ export interface VideoItem {
   plays: number;
   storage_path: string;
   thumbnail_url: string | null;
+  is_favorite: boolean;
 }
 
 export interface FolderItem {
@@ -208,6 +209,14 @@ export function useVideoStore() {
     setFolders((prev) => [data as FolderItem, ...prev]);
   }, []);
 
+  const toggleFavorite = useCallback(async (id: string) => {
+    const video = videos.find((v) => v.id === id);
+    if (!video) return;
+    const newVal = !video.is_favorite;
+    await supabase.from("videos").update({ is_favorite: newVal } as any).eq("id", id);
+    setVideos((prev) => prev.map((v) => v.id === id ? { ...v, is_favorite: newVal } : v));
+  }, [videos]);
+
   const deleteFolder = useCallback(async (id: string) => {
     await supabase.from("videos").update({ folder_id: null }).eq("folder_id", id);
     await supabase.from("folders").delete().eq("id", id);
@@ -226,6 +235,7 @@ export function useVideoStore() {
     uploadVideo,
     deleteVideo,
     incrementPlays,
+    toggleFavorite,
     createFolder,
     deleteFolder,
     getVideoUrl,

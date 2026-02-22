@@ -1,4 +1,4 @@
-import { Play, Trash2, FileVideo } from "lucide-react";
+import { Play, Trash2, FileVideo, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -14,6 +14,7 @@ import type { VideoItem } from "@/hooks/useVideoStore";
 interface Props {
   videos: VideoItem[];
   onDelete: (id: string) => void;
+  onToggleFavorite: (id: string) => void;
 }
 
 function formatSize(bytes: number) {
@@ -23,7 +24,7 @@ function formatSize(bytes: number) {
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
-const TopPlayedTable = ({ videos, onDelete }: Props) => {
+const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
   const navigate = useNavigate();
 
   if (videos.length === 0) {
@@ -85,14 +86,24 @@ const TopPlayedTable = ({ videos, onDelete }: Props) => {
                 {video.plays}
               </TableCell>
               <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); onDelete(video.id); }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(video.id); }}
+                  >
+                    <Heart className={`h-4 w-4 ${video.is_favorite ? "fill-red-500 text-red-500" : ""}`} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); onDelete(video.id); }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

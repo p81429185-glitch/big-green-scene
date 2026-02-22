@@ -38,6 +38,7 @@ export type Database = {
           file_name: string
           folder_id: string | null
           id: string
+          is_favorite: boolean
           plays: number
           size: number
           storage_path: string
@@ -50,6 +51,7 @@ export type Database = {
           file_name: string
           folder_id?: string | null
           id?: string
+          is_favorite?: boolean
           plays?: number
           size?: number
           storage_path: string
@@ -62,6 +64,7 @@ export type Database = {
           file_name?: string
           folder_id?: string | null
           id?: string
+          is_favorite?: boolean
           plays?: number
           size?: number
           storage_path?: string
