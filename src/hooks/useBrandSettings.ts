@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface BrandSettings {
@@ -31,19 +31,93 @@ export function useBrandSettings() {
     }
   });
   const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const dbRowId = useRef<string | null>(null);
+
+  // Load from DB on mount
+  useEffect(() => {
+    const loadFromDb = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("brand_settings")
+          .select("*")
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          dbRowId.current = data.id;
+          const dbSettings: BrandSettings = {
+            logo_url: data.logo_url ?? "",
+            player_color: data.player_color,
+            icon_color: data.icon_color,
+            progress_color: data.progress_color,
+            play_bg_color: data.play_bg_color,
+            font_family: data.font_family,
+          };
+          setSettings(dbSettings);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(dbSettings));
+        }
+      } catch {
+        // fallback to localStorage (already loaded in useState)
+      } finally {
+        setLoaded(true);
+      }
+    };
+    loadFromDb();
+  }, []);
+
+  const persistToDb = useCallback(async (updated: BrandSettings) => {
+    setSaving(true);
+    try {
+      if (dbRowId.current) {
+        await supabase
+          .from("brand_settings")
+          .update({
+            logo_url: updated.logo_url || null,
+            player_color: updated.player_color,
+            icon_color: updated.icon_color,
+            progress_color: updated.progress_color,
+            play_bg_color: updated.play_bg_color,
+            font_family: updated.font_family,
+          })
+          .eq("id", dbRowId.current);
+      } else {
+        const { data } = await supabase
+          .from("brand_settings")
+          .insert({
+            user_id: null as any,
+            logo_url: updated.logo_url || null,
+            player_color: updated.player_color,
+            icon_color: updated.icon_color,
+            progress_color: updated.progress_color,
+            play_bg_color: updated.play_bg_color,
+            font_family: updated.font_family,
+          })
+          .select("id")
+          .single();
+        if (data) dbRowId.current = data.id;
+      }
+    } catch {
+      // silent fail, localStorage is already saved
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   const saveSettings = useCallback((updated: BrandSettings) => {
     setSettings(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  }, []);
+    persistToDb(updated);
+  }, [persistToDb]);
 
   const updateSetting = useCallback(<K extends keyof BrandSettings>(key: K, value: BrandSettings[K]) => {
     setSettings((prev) => {
       const next = { ...prev, [key]: value };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      persistToDb(next);
       return next;
     });
-  }, []);
+  }, [persistToDb]);
 
   const uploadLogo = useCallback(async (file: File): Promise<string | null> => {
     const ext = file.name.split(".").pop() || "png";
@@ -61,5 +135,5 @@ export function useBrandSettings() {
     updateSetting("logo_url", "");
   }, [updateSetting]);
 
-  return { settings, saveSettings, updateSetting, uploadLogo, removeLogo, saving };
+  return { settings, saveSettings, updateSetting, uploadLogo, removeLogo, saving, loaded };
 }

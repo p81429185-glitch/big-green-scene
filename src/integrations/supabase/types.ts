@@ -25,7 +25,7 @@ export type Database = {
           player_color: string
           progress_color: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -37,7 +37,7 @@ export type Database = {
           player_color?: string
           progress_color?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -49,7 +49,7 @@ export type Database = {
           player_color?: string
           progress_color?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -82,6 +82,38 @@ export type Database = {
           },
         ]
       }
+      video_chapters: {
+        Row: {
+          created_at: string
+          id: string
+          timestamp_seconds: number
+          title: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          timestamp_seconds?: number
+          title: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          timestamp_seconds?: number
+          title?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_chapters_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       videos: {
         Row: {
           created_at: string
@@ -92,6 +124,7 @@ export type Database = {
           plays: number
           size: number
           storage_path: string
+          subtitles_srt: string | null
           thumbnail_url: string | null
           title: string
           transcription: string | null
@@ -105,6 +138,7 @@ export type Database = {
           plays?: number
           size?: number
           storage_path: string
+          subtitles_srt?: string | null
           thumbnail_url?: string | null
           title: string
           transcription?: string | null
@@ -118,6 +152,7 @@ export type Database = {
           plays?: number
           size?: number
           storage_path?: string
+          subtitles_srt?: string | null
           thumbnail_url?: string | null
           title?: string
           transcription?: string | null
