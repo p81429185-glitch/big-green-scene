@@ -25,7 +25,7 @@ const Dashboard = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics">("home");
-  const { videos, folders, loading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo } = useVideoStore();
+  const { videos, folders, loading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
     queue, minimized, setMinimized, addFiles, clearQueue,
@@ -87,6 +87,7 @@ const Dashboard = () => {
         activeView={activeView}
         onViewChange={(view) => { setActiveView(view); if (view !== "home") setCurrentFolderId(null); }}
         onDropVideo={(videoId, folderId) => moveVideo(videoId, folderId)}
+        onDropFolder={(folderId, targetParentId) => moveFolder(folderId, targetParentId)}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

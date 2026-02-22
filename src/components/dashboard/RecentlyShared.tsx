@@ -14,15 +14,15 @@ interface Props {
 
 const RecentlyShared = ({ items }: Props) => {
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="p-4 border-b">
+    <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm">
+      <div className="p-4 border-b border-border/50">
         <h2 className="font-semibold text-card-foreground">Ostatnio udostępnione</h2>
       </div>
-      <div className="divide-y">
+      <div className="divide-y divide-border/30">
         {items.map((item) => (
-          <div key={item.id} className="p-4 hover:bg-muted/30 transition-colors cursor-pointer">
+          <div key={item.id} className="p-4 hover:bg-primary/5 transition-colors cursor-pointer">
             <div className="flex gap-3">
-              <div className="h-12 w-20 rounded bg-muted flex items-center justify-center shrink-0">
+              <div className="h-12 w-20 rounded-md bg-muted flex items-center justify-center shrink-0">
                 <Play className="h-3 w-3 text-muted-foreground" />
               </div>
               <div className="min-w-0 flex-1">
