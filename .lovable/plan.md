@@ -1,66 +1,93 @@
 
 
-# Redesign strony wideo -- 1:1 jak Wistia
+# Redesign dialogu "Osadz" -- styl Wistia
 
-## Co brakuje vs screenshot Wistia
+## Obecny stan
+Prosty dialog z jednym blokiem kodu iframe i przyciskiem "Kopiuj kod". Brakuje zakladek, opcji rozmiaru, podgladu wideo i profesjonalnego layoutu.
 
-Obecny layout ma tylko: breadcrumb, tytul, player, 3 karty statystyk. Na screenshocie Wistia widac duzo wiecej elementow:
+## Docelowy wyglad (na wzor screenshotow Wistia)
 
-1. **Header z przyciskami** -- po prawej stronie tytulu: przycisk "..." (menu), "Embed" (niebieski), "Share" (niebieski z dropdown)
-2. **Rzad zakladek akcji** pod tytulem: Edit, Customize, Analytics, Social clips (z ikonami)
-3. **Dwukolumnowy layout** -- player po lewej, panel boczny po prawej
-4. **Prawy panel boczny** -- zakladki "Transcript" / "Comments", informacje o rozdziale, jezyk, tekst transkrypcji
-5. **Brak kart statystyk** pod playerem -- te informacje ida do prawego panelu
+Dialog z pelnym zestawem opcji osadzania:
 
-## Plan zmian
+### Struktura dialogu:
 
-### Plik: `src/pages/VideoPlayer.tsx` -- kompletny redesign
+**Naglowek:**
+- Tytul: "Osadz media" (bold, duzy)
+- Podtytul: "Wybierz sposob osadzania."
+- Zielony banner informacyjny z ikona: "Standardowe osadzanie inline jest najlepsze dla wiekszosci platform CMS."
 
-#### Struktura:
+**Zakladki glowne (5 zakladek):**
+1. **Inline** (domyslna) -- osadzanie bezposrednie
+2. **Popover** -- osadzanie jako popup
+3. **LLM-Friendly** -- osadzanie przyjazne dla LLM
+4. **Email** -- osadzanie w emailach
+5. **Transkrypcja** -- osadzanie transkrypcji
 
-```text
-+----------------------------------------------------------+
-| Content Library  >  Folder Name                          |
-+----------------------------------------------------------+
-| export dzien 2                    [...] [Embed] [Share]  |
-+----------------------------------------------------------+
-| Edit | Customize | Analytics | Social clips             |
-+----------------------------------------------------------+
-|                              |                           |
-|                              |  Szczegoly / Komentarze   |
-|      VIDEO PLAYER 16:9      |                           |
-|                              |  Rozmiar: 178 MB          |
-|                              |  Data: 22.02.2026         |
-|                              |  Odtworzenia: 15          |
-|                              |  Plik: nazwa.mp4          |
-+------------------------------+---------------------------+
-```
+### Zakladka "Inline":
+- Podglad wideo (miniaturka/player w ramce)
+- Opcje rozmiaru z radio buttons:
+  - **Responsywny** (zalecany, domyslny) -- "Najlatwiejsza opcja. Player dostosuje sie do szerokosci kontenera."
+  - **Staly rozmiar** -- pola input na szerokosc (640) i wysokosc (360)
+- Rozwijana sekcja "Zaawansowane opcje":
+  - Radio: **Standardowy** (zalecany JS embed) / **Fallback** (iframe)
+  - Checkbox: "Uzyj starszego kodu embed"
+  - Checkbox: "Uzyj oEmbed URL"
+  - Checkbox: "Dodaj metadane SEO" (domyslnie wlaczony)
 
-#### Szczegoly:
+### Zakladka "Popover":
+- Radio: **Wyswietl jako miniaturke** -- pola 150x84, checkbox "Responsywny"
+- Radio: **Wyswietl jako link tekstowy** -- pole input z placeholderem
 
-1. **Breadcrumb** -- bez przycisku "Wstecz" (strzalki), sam breadcrumb z ikonami folderow jak na Wistia
-2. **Header row** -- tytul po lewej, po prawej 3 przyciski:
-   - `MoreHorizontal` (menu) -- na razie bez akcji
-   - "Udostepnij" -- kopiuje link do wideo do schowka (toast z potwierdzeniem)
-   - "Osadz" -- pokazuje dialog z kodem embed `<iframe>`
-3. **Zakladki akcji** -- rzad ikon z etykietami (Edit, Dostosuj, Analityka, Klipy) -- na razie jako placeholder, klikniecie pokazuje toast "Wkrotce dostepne"
-4. **Layout 2-kolumnowy** (`grid grid-cols-1 lg:grid-cols-3 gap-6`):
-   - Lewa kolumna (`lg:col-span-2`): player wideo
-   - Prawa kolumna (`lg:col-span-1`): panel z zakladkami
-5. **Prawy panel** -- Card z zakladkami (Tabs):
-   - "Szczegoly" -- rozmiar, data, odtworzenia, nazwa pliku
-   - "Komentarze" -- placeholder "Brak komentarzy"
-6. **Karty statystyk** usuwane -- info przeniesione do prawego panelu
-7. **Responsywnosc** -- na mobile prawy panel pod playerem (single column)
+### Zakladka "LLM-Friendly":
+- Podglad wideo
+- Te same opcje rozmiaru co Inline (Responsywny / Staly rozmiar)
 
-### Nowe importy:
-- `MoreHorizontal`, `Code`, `Share2`, `Scissors`, `Settings`, `BarChart3`, `Pencil` z lucide-react
-- `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` z komponentow UI
-- `toast` z sonner (do kopiowania linku)
+### Zakladka "Email":
+- Placeholder: "Wkrotce dostepne" (funkcja wymaga generowania miniaturek z linkiem)
 
-### Logika bez zmian:
-- Pobieranie wideo z bazy
-- Pobieranie folderu
-- Generowanie URL
-- Inkrementacja plays
+### Zakladka "Transkrypcja":
+- Placeholder: "Wkrotce dostepne" (wymaga systemu transkrypcji)
+
+### Stopka dialogu (stala na dole):
+- Przycisk "Pokaz kod embed" (ikona oka) -- przelacza widok na surowy kod
+- Przycisk "Kopiuj kod" (niebieski/primary, ikona `</>`) -- kopiuje wygenerowany kod do schowka
+
+## Zmiany techniczne
+
+### Plik: `src/pages/VideoPlayer.tsx`
+
+1. **Nowy stan:**
+   - `embedTab` -- aktywna zakladka ("inline" | "popover" | "llm" | "email" | "transcript")
+   - `embedSizeMode` -- "responsive" | "fixed"
+   - `embedWidth` / `embedHeight` -- wymiary dla fixed size (domyslnie 640x360)
+   - `embedMethod` -- "standard" | "fallback"
+   - `showEmbedCode` -- toggle do pokazywania surowego kodu
+   - `injectSeo` -- checkbox SEO metadata
+   - `popoverMode` -- "thumbnail" | "textlink"
+   - `popoverWidth` / `popoverHeight` -- wymiary miniaturki popover
+   - `popoverText` -- tekst linku
+
+2. **Generowanie kodu embed** -- funkcja `generateEmbedCode()` ktora na podstawie wybranych opcji generuje odpowiedni kod:
+   - Inline responsive: `<div style="position:relative;padding-bottom:56.25%;..."><iframe ...></div>`
+   - Inline fixed: `<iframe width="640" height="360" ...>`
+   - Popover thumbnail: `<a href="..." class="..."><img ...></a>`
+   - Popover text link: `<a href="...">tekst</a>`
+
+3. **Nowy komponent dialogu** -- znacznie rozbudowany `DialogContent` z:
+   - Tabs z 5 zakladkami
+   - Formularz opcji w kazdej zakladce
+   - Podglad wideo (miniaturka lub player)
+   - Sekcja "Zaawansowane opcje" z Collapsible
+   - Stopka z dwoma przyciskami
+
+4. **Nowe importy:**
+   - `RadioGroup`, `RadioGroupItem` z UI
+   - `Checkbox` z UI
+   - `Input` z UI
+   - `Label` z UI
+   - `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` z UI
+   - `Eye`, `ChevronDown`, `ChevronUp`, `Info` z lucide-react
+
+### Plik: Mozliwe wydzielenie do `src/components/dashboard/EmbedDialog.tsx`
+Ze wzgledu na zlozonosc, dialog embed moze zostac wydzielony do osobnego komponentu, zeby VideoPlayer.tsx nie byl zbyt duzy.
 
