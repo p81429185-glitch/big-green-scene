@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, Upload, Loader2, Clock, ChevronDown, ChevronUp, X } from "lucide-react";
+import { CheckCircle2, AlertCircle, Upload, Loader2, Clock, ChevronDown, ChevronUp, X, ShieldCheck } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { QueueItem } from "@/hooks/useUploadQueue";
@@ -15,6 +15,8 @@ const StatusIcon = ({ status }: { status: QueueItem["status"] }) => {
       return <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />;
     case "uploading":
       return <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />;
+    case "cleaning":
+      return <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0 animate-pulse" />;
     case "processing":
       return <Loader2 className="h-4 w-4 text-amber-500 shrink-0 animate-spin" />;
     case "error":
@@ -90,6 +92,9 @@ const UploadQueue = ({
                   <span className="text-sm truncate flex-1 text-foreground">{item.fileName}</span>
                   <span className="text-xs text-muted-foreground shrink-0">{formatSize(item.fileSize)}</span>
                 </div>
+                {item.status === "cleaning" && (
+                  <p className="text-xs text-emerald-500">Usuwanie metadanych...</p>
+                )}
                 {item.status === "uploading" && (
                   <Progress value={item.progress} className="h-1" />
                 )}

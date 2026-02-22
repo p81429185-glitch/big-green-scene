@@ -7,7 +7,7 @@ export interface QueueItem {
   fileSize: number;
   folderId: string | null;
   progress: number;
-  status: "waiting" | "uploading" | "processing" | "done" | "error";
+  status: "waiting" | "cleaning" | "uploading" | "processing" | "done" | "error";
   error?: string;
 }
 
@@ -37,7 +37,7 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
     setQueue([]);
   }, []);
 
-  const isActive = queue.some((item) => item.status === "waiting" || item.status === "uploading" || item.status === "processing");
+  const isActive = queue.some((item) => item.status === "waiting" || item.status === "cleaning" || item.status === "uploading" || item.status === "processing");
   const hasItems = queue.length > 0;
 
   const doneCount = queue.filter((i) => i.status === "done").length;
@@ -61,16 +61,21 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
       processingRef.current = true;
 
       setQueue((prev) =>
-        prev.map((i) => (i.id === nextItem.id ? { ...i, status: "uploading" as const } : i))
+        prev.map((i) => (i.id === nextItem.id ? { ...i, status: "cleaning" as const } : i))
       );
 
       try {
+        // stripVideoMetadata is called inside uploadVideo, status will change to uploading via callback
         await uploadVideo(nextItem.file, nextItem.folderId, (pct) => {
           setQueue((prev) =>
             prev.map((i) => {
               if (i.id !== nextItem.id) return i;
               if (pct >= 95 && i.status !== "processing") {
                 return { ...i, progress: pct, status: "processing" as const };
+              }
+              // First progress call means upload started — switch from cleaning to uploading
+              if (i.status === "cleaning") {
+                return { ...i, progress: pct, status: "uploading" as const };
               }
               return { ...i, progress: pct };
             })
