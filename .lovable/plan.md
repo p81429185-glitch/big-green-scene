@@ -1,43 +1,30 @@
 
 
-# Naprawienie uploadu wideo -- prawdziwy progress bar
+# Przyspieszenie uploadu wideo
 
 ## Problem
-Obecny upload uzywa `supabase.storage.upload()`, ktory nie daje informacji o postepie przesylania. Progress bar skacze sztucznie z 10% na 60% -- uzytkownik nie widzi rzeczywistego postepu, a przy duzych plikach wyglada to jakby sie zawieszlo.
+Po uploadzie pliku XHR-em, funkcja `uploadVideo` **czeka** na generowanie miniaturki (`generateThumbnail`), ktora:
+1. Pobiera caly plik wideo PONOWNIE z serwera (po publicznym URL)
+2. Laduje go do tagu `<video>`, czeka na `loadeddata` + `seeked`
+3. Dopiero potem robi screenshot i uploaduje miniaturke
+
+To podwaja czas -- plik jest wysylany, a potem sciagany z powrotem. Przy duzych plikach to moze trwac bardzo dlugo.
 
 ## Rozwiazanie
-Zamienimy upload na `XMLHttpRequest` z eventem `progress`, ktory daje rzeczywisty procent przeslanych bajtow. Supabase Storage API to standardowy REST endpoint, wiec mozna do niego wyslac plik przez XHR.
 
-## Zmiany
+### 1. Miniaturka z lokalnego pliku zamiast ponownego pobierania
+Zamiast pobierac wideo z serwera, uzyj `URL.createObjectURL(file)` -- plik juz jest w pamieci przegladarki. Zero dodatkowego transferu.
 
-### 1. `src/hooks/useVideoStore.ts` -- nowa funkcja uploadu z XHR
-- Zastapienie `supabase.storage.upload()` wlasna funkcja uzywajaca `XMLHttpRequest`
-- Endpoint: `{SUPABASE_URL}/storage/v1/object/videos/{path}`
-- Naglowki: `Authorization: Bearer {token}`, `apikey: {anon_key}`
-- Event `xhr.upload.onprogress` raportuje rzeczywisty % przeslanych bajtow
-- Progress 0-90% = upload pliku, 90-95% = zapis metadanych, 95-100% = miniaturka
-- Dodanie nazwy pliku i rozmiaru w komunikacie progressu
+### 2. Generowanie miniaturki w tle (nie blokuje uploadu)
+Nie czekamy na miniaturke -- upload konczy sie na 95% (po zapisie metadanych), dialog zamyka sie od razu. Miniaturka generuje sie asynchronicznie w tle.
 
-### 2. `src/components/dashboard/UploadDialog.tsx` -- lepszy UI progressu
-- Wyswietlanie nazwy przesylanego pliku
-- Wyswietlanie rozmiaru pliku (np. "245 MB")
-- Wyswietlanie etapu: "Przesylanie pliku...", "Zapisywanie...", "Generowanie miniaturki..."
-- Plynna animacja progress bara (transition CSS)
+## Zmiany techniczne
 
-## Szczegoly techniczne
+### `src/hooks/useVideoStore.ts`
+- Zmiana `generateThumbnail` -- przyjmuje `File` zamiast URL, uzywa `URL.createObjectURL(file)` + `URL.revokeObjectURL()` po zakonczeniu
+- W `uploadVideo`: miniaturka generowana w tle (bez `await`), upload konczy sie po zapisie metadanych
+- `onProgress(100)` zaraz po insercie metadanych, bez czekania na miniaturke
+- Miniaturka aktualizuje state videos po wygenerowaniu w tle
 
-Upload przez XHR zamiast Supabase SDK:
-```
-const xhr = new XMLHttpRequest();
-xhr.upload.onprogress = (e) => {
-  if (e.lengthComputable) {
-    onProgress((e.loaded / e.total) * 90);
-  }
-};
-xhr.open('POST', `${url}/storage/v1/object/videos/${path}`);
-xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-xhr.setRequestHeader('apikey', anonKey);
-xhr.send(file);
-```
+To sprawi ze upload bedzie trwal tyle ile faktyczne przeslanie pliku + 1 sekunde na zapis metadanych. Miniaturka pojawi sie po chwili automatycznie.
 
-To daje rzeczywisty, plynny progress bar oparty na przeslanych bajtach.
