@@ -1,41 +1,59 @@
 
 
-# Naprawa: upload pokazuje 100% ale wideo nie pojawia sie
+# Usuwanie metadanych z plikow wideo przed uploadem
 
-## Diagnoza problemu
+## Problem
+Pliki wideo nagrane telefonem lub kamera zawieraja ukryte metadane: lokalizacja GPS, model urzadzenia, data/czas, nazwa uzytkownika, oprogramowanie. Ktos kto pobierze udostepniony filmik moze odczytac te dane i zidentyfikowac osobe ktora go nagrala.
 
-Problem jest w XHR uploadzie. Przegladarka wysyla bajty szybko (progress dochodzi do 90%), ale serwer jeszcze przetwarza plik -- `xhr.onload` nie odpalil sie. Pasek progressu wyglada na pelny (90% wizualnie wyglada jak 100%), ale upload jeszcze trwa na serwerze. Dlatego:
-- Pasek wyglada pelny
-- Status to nadal "uploading" (spinner sie kreci)
-- Wideo nie pojawia sie w tabeli
+## Rozwiazanie: Usuwanie metadanych po stronie przegladarki (client-side)
 
-Dodatkowo: XHR uzywa **anon key** jako token autoryzacji zamiast tokenu zalogowanego uzytkownika. To moze powodowac problemy z uploadem do storage.
+Pliki MP4/MOV skladaja sie z "atomow" (blokow danych). Metadane sa w atomach `udta` (user data -- GPS, urzadzenie) i `meta` (metadata) wewnatrz glownego atomu `moov`. Mozna je usunac bez re-enkodowania wideo -- jakos pozostaje 100% nienaruszona, zmienia sie tylko kontener.
 
-## Zmiany
+Podejscie client-side jest najlepsze bo:
+- Zero dodatkowego transferu (nie trzeba sciagac pliku z serwera i ponownie uploadowac)
+- Dzialanie jest natychmiastowe (parsowanie binarnych atomow jest szybkie)
+- Nie obciaza serwera
+- Dziala dla dowolnie duzych plikow
 
-### 1. `src/hooks/useVideoStore.ts` -- uzycie tokena uzytkownika + lepszy progress
+## Zmiany techniczne
 
-- **Pobranie tokena sesji** uzytkownika zamiast anon key dla Authorization header:
+### 1. Nowy plik `src/lib/stripVideoMetadata.ts`
+Parser atomow MP4/MOV ktory:
+- Czyta plik jako ArrayBuffer
+- Przechodzi przez atomy pliku (ftyp, moov, mdat, itp.)
+- Wewnatrz atomu `moov` rekurencyjnie przechodzi przez sub-atomy
+- Usuwa atomy `udta` (user data -- zawiera GPS, info o urzadzeniu) i `meta` (dodatkowe metadane)
+- Sklada nowy plik z pozostalych atomow
+- Zwraca oczyszczony Blob o tym samym typie MIME
+- Dla plikow nie-MP4 (np. AVI, MKV) -- zwraca oryginalny plik bez zmian (te formaty sa rzadko uzywane na telefonach)
+
+### 2. Zmiana w `src/hooks/useVideoStore.ts`
+- Import funkcji `stripVideoMetadata`
+- W `uploadVideo`, przed wywolaniem `uploadFileXHR`, przepuszczenie pliku przez stripper:
   ```
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token || anonKey;
+  const cleanFile = await stripVideoMetadata(file);
+  await uploadFileXHR(cleanFile, storagePath, onProgress);
   ```
-- **Zmiana progress na 0-95%** w XHR zamiast 0-90%, zeby pasek nie wygladal na pelny za wczesnie
-- **Dodanie statusu "Przetwarzanie..."** -- gdy progress osiagnie 95% (bajty wyslane), ale serwer jeszcze nie odpowiedzial
+- Miniaturka generowana z oryginalnego pliku (nie z oczyszczonego) -- to nie ma znaczenia bo miniaturka to tylko obraz
 
-### 2. `src/hooks/useUploadQueue.ts` -- nowy status "processing"
+### 3. Zmiana w `src/hooks/useUploadQueue.ts`
+- Dodanie nowego statusu `"cleaning"` wyswietlanego przed uploadem
+- Gdy plik jest czyszczony z metadanych, status zmienia sie na "cleaning"
 
-- Dodanie statusu `"processing"` do QueueItem -- gdy bajty sa wyslane ale serwer przetwarza
-- Aktualizacja statusu w odpowiednim momencie
+### 4. Zmiana w `src/components/dashboard/UploadQueue.tsx`
+- UI dla statusu "cleaning": ikona tarczy/zamka + tekst "Usuwanie metadanych..."
 
-### 3. `src/components/dashboard/UploadQueue.tsx` -- UI dla stanu przetwarzania
+### Jakie metadane sa usuwane:
+- Lokalizacja GPS (szerokosc/dlugosc geograficzna)
+- Model urzadzenia (np. "iPhone 15 Pro")
+- Wersja oprogramowania
+- Data i czas nagrania (w metadanych -- w samym wideo czas pozostaje)
+- Nazwa uzytkownika/artysty
+- Komentarze i opisy
+- Informacje o oprogramowaniu do edycji
 
-- Nowa ikona/tekst dla statusu "processing": "Przetwarzanie na serwerze..."
-- Animowany spinner dla tego stanu zeby uzytkownik widzial ze cos sie dzieje
-- Pasek progressu z animacja pulsowania gdy serwer przetwarza
-
-### Podsumowanie zmian w plikach:
-- `src/hooks/useVideoStore.ts` -- token uzytkownika, lepszy progress mapping
-- `src/hooks/useUploadQueue.ts` -- status "processing"
-- `src/components/dashboard/UploadQueue.tsx` -- UI dla przetwarzania
+### Czego NIE usuwamy (zeby wideo dzialalo):
+- Kodeki audio/video (trak atomy)
+- Informacje o rozdzielczosci i frame rate
+- Dane samego wideo i audio (mdat atom)
 
