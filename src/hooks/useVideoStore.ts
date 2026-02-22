@@ -218,6 +218,11 @@ export function useVideoStore() {
     setVideos((prev) => prev.map((v) => v.id === id ? { ...v, is_favorite: newVal } : v));
   }, [videos]);
 
+  const moveVideo = useCallback(async (videoId: string, targetFolderId: string | null) => {
+    await supabase.from("videos").update({ folder_id: targetFolderId }).eq("id", videoId);
+    setVideos((prev) => prev.map((v) => v.id === videoId ? { ...v, folder_id: targetFolderId } : v));
+  }, []);
+
   const deleteFolder = useCallback(async (id: string) => {
     await supabase.from("videos").update({ folder_id: null }).eq("folder_id", id);
     await supabase.from("folders").delete().eq("id", id);
@@ -238,6 +243,7 @@ export function useVideoStore() {
     incrementPlays,
     toggleFavorite,
     createFolder,
+    moveVideo,
     deleteFolder,
     getVideoUrl,
     fetchVideos,
