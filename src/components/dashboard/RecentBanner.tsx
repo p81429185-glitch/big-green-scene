@@ -14,9 +14,10 @@ const RecentBanner = ({ title, videoId, thumbnailUrl, lastEdited, onDismiss }: P
   const navigate = useNavigate();
 
   return (
-    <div className="relative rounded-xl bg-primary p-5 text-primary-foreground flex items-center justify-between gap-4">
-      <div className="flex items-center gap-4 min-w-0">
-        <div className="h-16 w-28 rounded-lg bg-primary-foreground/10 flex items-center justify-center shrink-0 overflow-hidden">
+    <div className="relative rounded-xl bg-gradient-to-r from-primary via-primary/90 to-accent p-5 text-primary-foreground flex items-center justify-between gap-4 shadow-lg shadow-primary/20 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-accent/20" />
+      <div className="flex items-center gap-4 min-w-0 relative z-10">
+        <div className="h-16 w-28 rounded-lg bg-primary-foreground/10 flex items-center justify-center shrink-0 overflow-hidden backdrop-blur-sm">
           {thumbnailUrl ? (
             <img src={thumbnailUrl} alt={title} className="h-full w-full object-cover" />
           ) : (
@@ -29,12 +30,12 @@ const RecentBanner = ({ title, videoId, thumbnailUrl, lastEdited, onDismiss }: P
           <p className="text-sm opacity-70">{lastEdited}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 relative z-10">
         <Button
           onClick={() => navigate(`/video/${videoId}`)}
           variant="secondary"
           size="sm"
-          className="gap-2 bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-0"
+          className="gap-2 bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-0 backdrop-blur-sm"
         >
           <Play className="h-3.5 w-3.5 fill-primary-foreground" />
           Oglądaj

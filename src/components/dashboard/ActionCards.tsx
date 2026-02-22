@@ -19,13 +19,17 @@ const ActionCards = ({ totalPlays, onUploadClick, onFolderClick }: Props) => {
         <button
           key={action.label}
           onClick={action.onClick}
-          className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:shadow-md ${
+          className={`flex flex-col items-center gap-2 p-5 rounded-xl border transition-all duration-300 ${
             action.highlight
-              ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-              : "bg-card text-card-foreground hover:bg-muted/50"
+              ? "bg-gradient-to-br from-primary to-accent text-primary-foreground border-primary/30 hover:shadow-lg hover:shadow-primary/20 hover:scale-[1.02]"
+              : "bg-card border-border/50 text-card-foreground hover:bg-card/80 hover:border-primary/20 hover:shadow-md"
           }`}
         >
-          <action.icon className="h-6 w-6" />
+          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+            action.highlight ? "bg-primary-foreground/20" : "bg-primary/10"
+          }`}>
+            <action.icon className={`h-5 w-5 ${action.highlight ? "" : "text-primary"}`} />
+          </div>
           <div className="text-center">
             <p className="text-sm font-semibold">{action.label}</p>
             <p className={`text-xs ${action.highlight ? "text-primary-foreground/70" : "text-muted-foreground"}`}>

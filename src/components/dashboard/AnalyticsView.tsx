@@ -35,10 +35,10 @@ const AnalyticsView = ({ videos, folders }: Props) => {
   }
 
   const stats = [
-    { icon: Film, label: "Filmy", value: videos.length },
-    { icon: Play, label: "Odtworzenia", value: totalPlays },
-    { icon: HardDrive, label: "Rozmiar", value: formatSize(totalSize) },
-    { icon: Heart, label: "Ulubione", value: totalFavorites },
+    { icon: Film, label: "Filmy", value: videos.length, color: "from-primary/20 to-primary/5" },
+    { icon: Play, label: "Odtworzenia", value: totalPlays, color: "from-accent/20 to-accent/5" },
+    { icon: HardDrive, label: "Rozmiar", value: formatSize(totalSize), color: "from-primary/20 to-accent/5" },
+    { icon: Heart, label: "Ulubione", value: totalFavorites, color: "from-red-500/20 to-red-500/5" },
   ];
 
   return (
@@ -47,8 +47,10 @@ const AnalyticsView = ({ videos, folders }: Props) => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-xl border bg-card p-4 flex flex-col items-center gap-2">
-            <s.icon className="h-5 w-5 text-primary" />
+          <div key={s.label} className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-4 flex flex-col items-center gap-2">
+            <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${s.color} flex items-center justify-center`}>
+              <s.icon className="h-5 w-5 text-primary" />
+            </div>
             <p className="text-2xl font-bold text-card-foreground">{s.value}</p>
             <p className="text-xs text-muted-foreground">{s.label}</p>
           </div>
@@ -56,25 +58,25 @@ const AnalyticsView = ({ videos, folders }: Props) => {
       </div>
 
       {top5.length > 0 && (
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-4">
           <h3 className="font-semibold text-card-foreground mb-4">Top 5 najczęściej odtwarzanych</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={top5}>
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="plays" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={{ stroke: "hsl(var(--border))" }} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={{ stroke: "hsl(var(--border))" }} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))" }} />
+              <Bar dataKey="plays" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {folderStats.length > 0 && (
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-4">
           <h3 className="font-semibold text-card-foreground mb-3">Statystyki folderów</h3>
           <div className="space-y-2">
             {folderStats.map((f) => (
-              <div key={f.name} className="flex items-center justify-between py-2 border-b last:border-0">
+              <div key={f.name} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
                 <span className="text-sm text-card-foreground">{f.name}</span>
                 <div className="flex gap-4 text-xs text-muted-foreground">
                   <span>{f.videos} filmów</span>

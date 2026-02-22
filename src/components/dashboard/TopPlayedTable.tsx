@@ -29,21 +29,23 @@ const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
 
   if (videos.length === 0) {
     return (
-      <div className="rounded-xl border bg-card flex flex-col items-center justify-center py-16 gap-4">
-        <FileVideo className="h-12 w-12 text-muted-foreground" />
+      <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm flex flex-col items-center justify-center py-16 gap-4">
+        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+          <FileVideo className="h-8 w-8 text-primary" />
+        </div>
         <p className="text-muted-foreground font-medium">Brak filmów — dodaj pierwszy!</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="p-4 border-b">
+    <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm">
+      <div className="p-4 border-b border-border/50">
         <h2 className="font-semibold text-card-foreground">Twoje filmy</h2>
       </div>
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="border-border/50 hover:bg-transparent">
             <TableHead className="w-16" />
             <TableHead>Tytuł</TableHead>
             <TableHead className="hidden sm:table-cell">Rozmiar</TableHead>
@@ -56,7 +58,7 @@ const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
           {videos.map((video) => (
             <TableRow
               key={video.id}
-              className="cursor-pointer hover:bg-muted/50"
+              className="cursor-pointer border-border/30 hover:bg-primary/5 transition-colors"
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", video.id);
@@ -73,10 +75,10 @@ const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
                   <img
                     src={video.thumbnail_url}
                     alt={video.title}
-                    className="h-9 w-14 rounded object-cover"
+                    className="h-10 w-16 rounded-md object-cover"
                   />
                 ) : (
-                  <div className="h-9 w-14 rounded bg-muted flex items-center justify-center">
+                  <div className="h-10 w-16 rounded-md bg-muted flex items-center justify-center">
                     <Play className="h-3 w-3 text-muted-foreground" />
                   </div>
                 )}
@@ -91,8 +93,11 @@ const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
               <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
                 {new Date(video.created_at).toLocaleDateString("pl-PL")}
               </TableCell>
-              <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
-                {video.plays}
+              <TableCell className="hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                  <Play className="h-2.5 w-2.5 fill-primary" />
+                  {video.plays}
+                </span>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">

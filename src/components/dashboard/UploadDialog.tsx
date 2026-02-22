@@ -54,7 +54,7 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setError(null); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border-border/50 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle>Dodaj filmy</DialogTitle>
           <DialogDescription>Przeciągnij pliki lub kliknij, aby wybrać (maks. {MAX_FILES})</DialogDescription>
@@ -71,18 +71,18 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected }: Props) => {
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-4 text-center transition-colors ${
-            dragOver ? "border-primary bg-primary/5" : "border-border"
+          className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center gap-4 text-center transition-all duration-300 ${
+            dragOver ? "border-primary bg-primary/5 scale-[1.02]" : "border-border/50 hover:border-primary/30"
           }`}
         >
-          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
-            <Upload className="h-7 w-7 text-primary" />
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+            <Upload className="h-8 w-8 text-primary" />
           </div>
           <div>
             <p className="font-medium text-foreground">Przeciągnij pliki tutaj</p>
             <p className="text-sm text-muted-foreground mt-1">MP4, MOV, AVI, MKV, WEBM</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+          <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()} className="border-border/50">
             Wybierz pliki
           </Button>
           <input ref={inputRef} type="file" accept={ACCEPTED} multiple className="hidden" onChange={onFileChange} />

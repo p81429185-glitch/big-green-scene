@@ -32,15 +32,19 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-muted/30">
-      <Link to="/" className="flex items-center gap-2 mb-8">
-        <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-background relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
+      <div className="absolute top-1/3 left-1/3 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-1/3 right-1/3 w-80 h-80 bg-accent/10 rounded-full blur-3xl" />
+
+      <Link to="/" className="flex items-center gap-2 mb-8 relative z-10">
+        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
           <Play className="h-4 w-4 text-primary-foreground fill-primary-foreground" />
         </div>
-        <span className="text-xl font-bold text-foreground">Big Hosting</span>
+        <span className="text-xl font-bold text-foreground tracking-tight">Big Hosting</span>
       </Link>
 
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md relative z-10 border-border/50 bg-card/80 backdrop-blur-xl shadow-2xl shadow-primary/5">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Witaj ponownie</CardTitle>
           <CardDescription>Zaloguj się na swoje konto</CardDescription>
@@ -62,6 +66,7 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="bg-background/50"
               />
             </div>
             <div className="space-y-2">
@@ -73,9 +78,10 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="bg-background/50"
               />
             </div>
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-lg shadow-primary/25">
               Zaloguj się
             </Button>
           </form>

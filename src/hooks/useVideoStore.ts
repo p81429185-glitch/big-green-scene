@@ -223,6 +223,23 @@ export function useVideoStore() {
     setVideos((prev) => prev.map((v) => v.id === videoId ? { ...v, folder_id: targetFolderId } : v));
   }, []);
 
+  const isDescendant = useCallback((folderId: string, potentialParentId: string): boolean => {
+    let current: string | null = potentialParentId;
+    while (current) {
+      if (current === folderId) return true;
+      const folder = folders.find((f) => f.id === current);
+      current = folder?.parent_id ?? null;
+    }
+    return false;
+  }, [folders]);
+
+  const moveFolder = useCallback(async (folderId: string, targetParentId: string | null) => {
+    if (folderId === targetParentId) return;
+    if (targetParentId && isDescendant(folderId, targetParentId)) return;
+    await supabase.from("folders").update({ parent_id: targetParentId } as any).eq("id", folderId);
+    setFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, parent_id: targetParentId } : f));
+  }, [isDescendant]);
+
   const deleteFolder = useCallback(async (id: string) => {
     await supabase.from("videos").update({ folder_id: null }).eq("folder_id", id);
     await supabase.from("folders").delete().eq("id", id);
@@ -244,6 +261,7 @@ export function useVideoStore() {
     toggleFavorite,
     createFolder,
     moveVideo,
+    moveFolder,
     deleteFolder,
     getVideoUrl,
     fetchVideos,
