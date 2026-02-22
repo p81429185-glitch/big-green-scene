@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      brand_settings: {
+        Row: {
+          created_at: string
+          font_family: string
+          icon_color: string
+          id: string
+          logo_url: string | null
+          play_bg_color: string
+          player_color: string
+          progress_color: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          font_family?: string
+          icon_color?: string
+          id?: string
+          logo_url?: string | null
+          play_bg_color?: string
+          player_color?: string
+          progress_color?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          font_family?: string
+          icon_color?: string
+          id?: string
+          logo_url?: string | null
+          play_bg_color?: string
+          player_color?: string
+          progress_color?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       folders: {
         Row: {
           created_at: string

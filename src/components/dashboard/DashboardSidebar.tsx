@@ -7,6 +7,7 @@ import {
   Heart,
   Library,
   BarChart3,
+  Palette,
   Play,
   LogOut,
   X,
@@ -19,13 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import type { FolderItem } from "@/hooks/useVideoStore";
 
-type ViewType = "home" | "favorites" | "library" | "analytics";
+type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit";
 
 const navItems = [
   { icon: Home, label: "Home" },
   { icon: Heart, label: "Ulubione" },
   { icon: Library, label: "Biblioteka" },
   { icon: BarChart3, label: "Analityka" },
+  { icon: Palette, label: "Brand Kit" },
 ];
 
 interface Props {
@@ -46,6 +48,7 @@ const viewMap: Record<string, ViewType> = {
   Ulubione: "favorites",
   Biblioteka: "library",
   Analityka: "analytics",
+  "Brand Kit": "brandkit",
 };
 
 const handleDragData = (e: React.DragEvent) => {

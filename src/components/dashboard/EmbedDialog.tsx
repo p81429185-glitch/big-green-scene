@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,7 @@ import {
   Palette,
 } from "lucide-react";
 import { toast } from "sonner";
-
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 interface EmbedDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -134,13 +134,25 @@ const EmbedDialog = ({
   const [popoverResponsive, setPopoverResponsive] = useState(false);
   const [popoverText, setPopoverText] = useState("Kliknij, aby obejrzeć wideo");
 
-  // Branding states
+  // Branding states - initialized from global brand settings
+  const { settings: brandSettings } = useBrandSettings();
   const [brandColor, setBrandColor] = useState("#16a34a");
   const [brandIconColor, setBrandIconColor] = useState("#ffffff");
   const [brandProgressColor, setBrandProgressColor] = useState("#ffffff");
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const [brandPlayBgColor, setBrandPlayBgColor] = useState("rgba(22,163,74,0.8)");
   const [brandingOpen, setBrandingOpen] = useState(false);
+
+  // Sync from global brand settings when dialog opens
+  useEffect(() => {
+    if (open) {
+      setBrandColor(brandSettings.player_color);
+      setBrandIconColor(brandSettings.icon_color);
+      setBrandProgressColor(brandSettings.progress_color);
+      setBrandLogoUrl(brandSettings.logo_url);
+      setBrandPlayBgColor(brandSettings.play_bg_color);
+    }
+  }, [open, brandSettings]);
 
   const embedCode = useMemo(() => {
     let rawCode = "";
