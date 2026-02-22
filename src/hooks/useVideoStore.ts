@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { stripVideoMetadata } from "@/lib/stripVideoMetadata";
 
 export interface VideoItem {
   id: string;
@@ -134,9 +135,12 @@ export function useVideoStore() {
     ) => {
       const storagePath = `${crypto.randomUUID()}_${file.name}`;
 
-      // Upload file with real progress (0-90%)
+      // Strip metadata (GPS, device info) before upload
+      const cleanFile = await stripVideoMetadata(file);
+
+      // Upload cleaned file with real progress
       onProgress?.(0);
-      await uploadFileXHR(file, storagePath, onProgress);
+      await uploadFileXHR(cleanFile, storagePath, onProgress);
 
       // Insert metadata (90-95%)
       onProgress?.(91);
