@@ -94,15 +94,19 @@ export function useVideoStore() {
     });
   };
 
-  const uploadFileXHR = (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const url = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const uploadFileXHR = async (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+    // Use user's session token instead of anon key
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || anonKey;
+
+    return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
-          onProgress?.(Math.round((e.loaded / e.total) * 90));
+          onProgress?.(Math.round((e.loaded / e.total) * 95));
         }
       };
       xhr.onload = () => {
@@ -114,8 +118,9 @@ export function useVideoStore() {
       };
       xhr.onerror = () => reject(new Error("Network error during upload"));
       xhr.open("POST", `${url}/storage/v1/object/videos/${storagePath}`);
-      xhr.setRequestHeader("Authorization", `Bearer ${anonKey}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       xhr.setRequestHeader("apikey", anonKey);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
       xhr.setRequestHeader("x-upsert", "false");
       xhr.send(file);
     });
