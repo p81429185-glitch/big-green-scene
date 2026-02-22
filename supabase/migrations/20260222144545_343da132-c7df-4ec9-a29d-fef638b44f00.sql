@@ -1,0 +1,1 @@
+ALTER TABLE folders ADD COLUMN parent_id uuid REFERENCES folders(id) ON DELETE CASCADE DEFAULT NULL;

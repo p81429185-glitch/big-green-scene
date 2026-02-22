@@ -19,6 +19,7 @@ export interface FolderItem {
   id: string;
   name: string;
   created_at: string;
+  parent_id: string | null;
 }
 
 export function useVideoStore() {
@@ -199,10 +200,10 @@ export function useVideoStore() {
     setVideos((prev) => prev.map((v) => v.id === id ? { ...v, plays: newPlays } : v));
   }, [videos]);
 
-  const createFolder = useCallback(async (name: string) => {
+  const createFolder = useCallback(async (name: string, parentId?: string | null) => {
     const { data, error } = await supabase
       .from("folders")
-      .insert({ name })
+      .insert({ name, parent_id: parentId ?? null } as any)
       .select()
       .single();
     if (error) throw error;
