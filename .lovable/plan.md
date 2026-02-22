@@ -1,19 +1,62 @@
 
+# Transkrypcja wideo za pomoca AI (Gemini)
 
-# Naprawa warninga w EmbedDialog
+## Opis
+System automatycznej transkrypcji wideo z uzyciem Lovable AI (Gemini). Uzytkownik klika przycisk "Transkrybuj" na stronie wideo, a AI przetwarza audio i zapisuje tekst transkrypcji w bazie danych.
 
-## Problem
-Komponent `AdvancedOptions` jest zdefiniowany jako zwykla funkcja wewnatrz `EmbedDialog`. Radix UI (przez `TabsContent` / `CollapsibleContent`) probuje przekazac do niego `ref`, co powoduje warning w konsoli:
-> "Function components cannot be given refs."
+## Zmiany w bazie danych
 
-## Rozwiazanie
-Zamiast definiowac `AdvancedOptions` i inne pod-komponenty (`SizeOptions`, `VideoPreview`, `PlaceholderTab`) jako osobne function components wewnatrz renderowania, nalezy zamienic je na **inline JSX** bezposrednio w kodzie `EmbedDialog`, lub przeniesc je poza komponent i uzyc `React.forwardRef`.
+Dodanie kolumny `transcription` do tabeli `videos`:
 
-Najprostrsze podejscie: zamienic wewnetrzne komponenty na zwykly inline JSX w odpowiednich miejscach w `TabsContent`. To eliminuje problem z ref i upraszcza kod.
+```sql
+ALTER TABLE videos ADD COLUMN transcription text;
+```
+
+## Nowa funkcja backendowa: `transcribe-video`
+
+Plik: `supabase/functions/transcribe-video/index.ts`
+
+1. Odbiera `videoId` w body (POST)
+2. Pobiera rekord wideo z bazy (storage_path)
+3. Generuje publiczny URL wideo
+4. Pobiera plik wideo jako binary (z limitem ~50MB)
+5. Konwertuje na base64
+6. Wysyla do Lovable AI Gateway (Gemini) z promptem: "Transkrybuj dokladnie wszystkie slowa wypowiedziane w tym nagraniu wideo. Zwroc sama transkrypcje bez dodatkowych komentarzy."
+7. Zapisuje wynik w kolumnie `transcription` tabeli `videos`
+8. Zwraca transkrypcje w odpowiedzi
+
+Konfiguracja w `supabase/config.toml`:
+```toml
+[functions.transcribe-video]
+verify_jwt = false
+```
+
+## Zmiany w UI
+
+### Plik: `src/pages/VideoPlayer.tsx`
+
+1. Dodanie stanu `transcribing` (boolean) i `transcription` (string | null)
+2. Przy ladowaniu wideo, odczytanie istniejacego pola `transcription` z bazy
+3. W panelu bocznym (zakladka "Szczegoly") lub jako nowa zakladka "Transkrypcja":
+   - Jesli transkrypcja istnieje -- wyswietlenie tekstu
+   - Jesli nie -- przycisk "Transkrybuj" ktory wywoluje edge function
+   - Podczas przetwarzania -- spinner z napisem "Trwa transkrypcja..."
+4. Mozliwosc ponownej transkrypcji (przycisk "Transkrybuj ponownie")
 
 ### Plik: `src/components/dashboard/EmbedDialog.tsx`
 
-1. Usunac definicje `SizeOptions`, `AdvancedOptions`, `VideoPreview`, `PlaceholderTab` jako osobnych komponentow
-2. Wstawic ich zawartosc bezposrednio (inline) w odpowiednie miejsca w JSX
-3. Zadna zmiana logiki ani wygladu -- tylko refaktor struktury JSX
+Zakladka "Transkrypcja" (obecnie placeholder) -- wyswietlenie transkrypcji jako kod embed do osadzenia, jesli transkrypcja istnieje. Komponent otrzyma nowy prop `transcription`.
 
+## Przeplyw uzytkownika
+
+1. Uzytkownik otwiera strone wideo
+2. W panelu bocznym widzi zakladke "Transkrypcja" lub przycisk w "Szczegolach"
+3. Klika "Transkrybuj"
+4. Pojawia sie spinner -- "Trwa transkrypcja..."
+5. Po zakonczeniu tekst transkrypcji wyswietla sie w panelu
+6. Transkrypcja jest zapisana w bazie -- przy kolejnych odwiedzinach laduje sie automatycznie
+
+## Ograniczenia
+- Limit rozmiaru pliku do ~50MB (wieksze pliki moga przekroczyc limity API)
+- Czas przetwarzania zalezy od dlugosci wideo (moze trwac 10-60 sekund)
+- Jesli wideo jest za duze, pokaze sie odpowiedni komunikat bledu
