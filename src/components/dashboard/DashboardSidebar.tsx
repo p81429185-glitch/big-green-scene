@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,9 +12,14 @@ import {
   X,
   Folder,
   Trash2,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import type { FolderItem } from "@/hooks/useVideoStore";
+
+type ViewType = "home" | "favorites" | "library" | "analytics";
 
 const navItems = [
   { icon: Home, label: "Home" },
@@ -29,14 +35,15 @@ interface Props {
   currentFolderId: string | null;
   onFolderSelect: (id: string | null) => void;
   onDeleteFolder: (id: string) => void;
-  activeView: "home" | "favorites" | "library";
-  onViewChange: (view: "home" | "favorites" | "library") => void;
+  activeView: ViewType;
+  onViewChange: (view: ViewType) => void;
 }
 
-const viewMap: Record<string, "home" | "favorites" | "library"> = {
+const viewMap: Record<string, ViewType> = {
   Home: "home",
   Ulubione: "favorites",
   Biblioteka: "library",
+  Analityka: "analytics",
 };
 
 const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange }: Props) => {
@@ -84,28 +91,14 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
         {folders.length > 0 && (
           <div className="pt-4">
             <p className="px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Foldery</p>
-            {folders.map((folder) => (
-              <div
-                key={folder.id}
-                className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-                  currentFolderId === folder.id
-                    ? "bg-sidebar-accent text-sidebar-primary font-medium"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/60"
-                }`}
-                onClick={() => onFolderSelect(folder.id)}
-              >
-                <Folder className="h-4 w-4 shrink-0" />
-                <span className="truncate flex-1">{folder.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
+            <FolderTree
+              folders={folders}
+              parentId={null}
+              depth={0}
+              currentFolderId={currentFolderId}
+              onFolderSelect={onFolderSelect}
+              onDeleteFolder={onDeleteFolder}
+            />
           </div>
         )}
       </nav>
@@ -131,6 +124,121 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
         </button>
       </div>
     </aside>
+  );
+};
+
+// Recursive folder tree component
+const FolderTree = ({
+  folders,
+  parentId,
+  depth,
+  currentFolderId,
+  onFolderSelect,
+  onDeleteFolder,
+}: {
+  folders: FolderItem[];
+  parentId: string | null;
+  depth: number;
+  currentFolderId: string | null;
+  onFolderSelect: (id: string | null) => void;
+  onDeleteFolder: (id: string) => void;
+}) => {
+  const children = folders.filter((f) => (f.parent_id ?? null) === parentId);
+  if (children.length === 0) return null;
+
+  return (
+    <>
+      {children.map((folder) => {
+        const hasChildren = folders.some((f) => f.parent_id === folder.id);
+        return (
+          <FolderTreeItem
+            key={folder.id}
+            folder={folder}
+            folders={folders}
+            depth={depth}
+            hasChildren={hasChildren}
+            currentFolderId={currentFolderId}
+            onFolderSelect={onFolderSelect}
+            onDeleteFolder={onDeleteFolder}
+          />
+        );
+      })}
+    </>
+  );
+};
+
+const FolderTreeItem = ({
+  folder,
+  folders,
+  depth,
+  hasChildren,
+  currentFolderId,
+  onFolderSelect,
+  onDeleteFolder,
+}: {
+  folder: FolderItem;
+  folders: FolderItem[];
+  depth: number;
+  hasChildren: boolean;
+  currentFolderId: string | null;
+  onFolderSelect: (id: string | null) => void;
+  onDeleteFolder: (id: string) => void;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const isActive = currentFolderId === folder.id;
+
+  if (!hasChildren) {
+    return (
+      <div
+        className={`group flex items-center gap-2 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
+          isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+        }`}
+        style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: 12 }}
+        onClick={() => onFolderSelect(folder.id)}
+      >
+        <Folder className="h-4 w-4 shrink-0" />
+        <span className="truncate flex-1">{folder.name}</span>
+        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }}>
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={expanded} onOpenChange={setExpanded}>
+      <div
+        className={`group flex items-center gap-1 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
+          isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+        }`}
+        style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: 12 }}
+      >
+        <CollapsibleTrigger asChild>
+          <button className="shrink-0 p-0.5" onClick={(e) => e.stopPropagation()}>
+            {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          </button>
+        </CollapsibleTrigger>
+        <div className="flex items-center gap-2 flex-1 min-w-0" onClick={() => onFolderSelect(folder.id)}>
+          <Folder className="h-4 w-4 shrink-0" />
+          <span className="truncate flex-1">{folder.name}</span>
+        </div>
+        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }}>
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+      <CollapsibleContent>
+        <FolderTree
+          folders={folders}
+          parentId={folder.id}
+          depth={depth + 1}
+          currentFolderId={currentFolderId}
+          onFolderSelect={onFolderSelect}
+          onDeleteFolder={onDeleteFolder}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
 

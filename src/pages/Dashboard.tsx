@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Search, Menu } from "lucide-react";
+import { Search, Menu, ChevronRight } from "lucide-react";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import ActionCards from "@/components/dashboard/ActionCards";
 import RecentBanner from "@/components/dashboard/RecentBanner";
@@ -12,6 +12,7 @@ import RecentlyShared from "@/components/dashboard/RecentlyShared";
 import UploadDialog from "@/components/dashboard/UploadDialog";
 import UploadQueue from "@/components/dashboard/UploadQueue";
 import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
+import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
 
@@ -23,7 +24,7 @@ const Dashboard = () => {
   const [bannerVisible, setBannerVisible] = useState(true);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"home" | "favorites" | "library">("home");
+  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics">("home");
   const { videos, folders, loading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder } = useVideoStore();
 
   const {
@@ -37,7 +38,7 @@ const Dashboard = () => {
 
   const filteredVideos = activeView === "favorites"
     ? videos.filter((v) => v.is_favorite)
-    : activeView === "library"
+    : activeView === "library" || activeView === "analytics"
       ? videos
       : currentFolderId
         ? videos.filter((v) => v.folder_id === currentFolderId)
@@ -46,8 +47,28 @@ const Dashboard = () => {
   const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
   const lastVideo = videos.length > 0 ? videos[0] : null;
 
+  // Breadcrumb path for nested folders
+  const breadcrumbPath = useMemo(() => {
+    if (!currentFolderId || activeView !== "home") return [];
+    const path: { id: string; name: string }[] = [];
+    let id: string | null = currentFolderId;
+    while (id) {
+      const folder = folders.find((f) => f.id === id);
+      if (!folder) break;
+      path.unshift({ id: folder.id, name: folder.name });
+      id = folder.parent_id ?? null;
+    }
+    return path;
+  }, [currentFolderId, folders, activeView]);
+
+  const currentFolderName = currentFolderId ? folders.find((f) => f.id === currentFolderId)?.name : undefined;
+
   const handleFilesSelected = (files: File[]) => {
     addFiles(files, currentFolderId);
+  };
+
+  const handleCreateFolder = (name: string) => {
+    createFolder(name, currentFolderId);
   };
 
   return (
@@ -84,13 +105,34 @@ const Dashboard = () => {
         </header>
 
         <main className="flex-1 p-4 md:p-6 space-y-6">
-          <ActionCards
-            totalPlays={totalPlays}
-            onUploadClick={() => setUploadOpen(true)}
-            onFolderClick={() => setFolderOpen(true)}
-          />
+          {activeView !== "analytics" && (
+            <ActionCards
+              totalPlays={totalPlays}
+              onUploadClick={() => setUploadOpen(true)}
+              onFolderClick={() => setFolderOpen(true)}
+            />
+          )}
 
-          {bannerVisible && lastVideo && (
+          {breadcrumbPath.length > 0 && activeView === "home" && (
+            <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+              <button className="hover:text-foreground transition-colors" onClick={() => setCurrentFolderId(null)}>
+                Wszystkie
+              </button>
+              {breadcrumbPath.map((item) => (
+                <span key={item.id} className="flex items-center gap-1">
+                  <ChevronRight className="h-3 w-3" />
+                  <button
+                    className={`hover:text-foreground transition-colors ${item.id === currentFolderId ? "text-foreground font-medium" : ""}`}
+                    onClick={() => setCurrentFolderId(item.id)}
+                  >
+                    {item.name}
+                  </button>
+                </span>
+              ))}
+            </nav>
+          )}
+
+          {activeView !== "analytics" && bannerVisible && lastVideo && (
             <RecentBanner
               title={lastVideo.title}
               videoId={lastVideo.id}
@@ -104,6 +146,8 @@ const Dashboard = () => {
             <div className="flex items-center justify-center py-16 text-muted-foreground">
               Ładowanie...
             </div>
+          ) : activeView === "analytics" ? (
+            <AnalyticsView videos={videos} folders={folders} />
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
@@ -126,7 +170,8 @@ const Dashboard = () => {
         open={folderOpen}
         onOpenChange={setFolderOpen}
         existingNames={folders.map((f) => f.name)}
-        onCreate={createFolder}
+        onCreate={handleCreateFolder}
+        parentFolderName={currentFolderName}
       />
 
       {hasItems && (

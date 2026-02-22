@@ -16,9 +16,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   existingNames: string[];
   onCreate: (name: string) => void;
+  parentFolderName?: string;
 }
 
-const CreateFolderDialog = ({ open, onOpenChange, existingNames, onCreate }: Props) => {
+const CreateFolderDialog = ({ open, onOpenChange, existingNames, onCreate, parentFolderName }: Props) => {
   const [name, setName] = useState("");
   const trimmed = name.trim();
   const duplicate = existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase());
@@ -35,8 +36,10 @@ const CreateFolderDialog = ({ open, onOpenChange, existingNames, onCreate }: Pro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Nowy folder</DialogTitle>
-          <DialogDescription>Podaj nazwę folderu</DialogDescription>
+          <DialogTitle>{parentFolderName ? "Nowy podfolder" : "Nowy folder"}</DialogTitle>
+          <DialogDescription>
+            {parentFolderName ? `Tworzysz podfolder w: ${parentFolderName}` : "Podaj nazwę folderu"}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
