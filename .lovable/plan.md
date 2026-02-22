@@ -1,32 +1,41 @@
 
 
-# System logowania tylko dla admina (bez Supabase)
+# Przebudowa dashboardu w stylu Wistia
 
 ## Co zrobimy
-Stworzymy prosty system logowania z hardcoded danymi admina, bez publicznej rejestracji. Supabase podłączymy później.
+Przebudujemy dashboard, aby wyglądał jak na screenshocie z Wistia -- z paskiem akcji na gorze, banerem ostatnio oglądanego filmu, tabelą najczęściej odtwarzanych filmów i panelem bocznym z ostatnio udostępnionymi.
 
-## Zmiany
+## Zmiany w `src/pages/Dashboard.tsx`
 
-### 1. Kontekst autoryzacji (`src/contexts/AuthContext.tsx`)
-- Nowy kontekst React przechowujący stan zalogowanego użytkownika
-- Hardcoded dane admina: `michalrucznaj@gmail.com` / `Admin123`
-- Funkcje: `login()`, `logout()`, `isAuthenticated`
-- Stan zapisywany w `localStorage` (przetrwa odświeżenie strony)
+### 1. Sidebar -- nowa nawigacja (jak na screenie)
+- Home, Ulubione, Biblioteka, Kanaly, Analityka (zamiast obecnych Filmy/Foldery/Ustawienia)
+- Ikony dopasowane do Wistia
 
-### 2. Strona logowania (`src/pages/Auth.tsx`)
-- Usunięcie opcji rejestracji -- tylko formularz logowania
-- Walidacja danych z hardcoded adminem
-- Po zalogowaniu przekierowanie na `/dashboard`
-- Komunikat błędu przy złych danych
+### 2. Top bar
+- Pole wyszukiwania po lewej
+- Avatar uzytkownika po prawej
 
-### 3. Ochrona dashboardu (`src/pages/Dashboard.tsx`)
-- Przekierowanie na `/auth` gdy użytkownik nie jest zalogowany
-- Przycisk wylogowania w sidebarze
-- Wyświetlanie emaila admina zamiast "Jan Kowalski"
+### 3. Pasek akcji (action cards)
+- Rzad kafelkow: "X odtworzen w tym tygodniu", **"Upload"**, "Nagraj", "Folder", "Kanal"
+- Kafelek "Upload" bedzie glownym sposobem dodawania filmow (na razie UI-only, bez prawdziwego uploadu)
 
-### 4. App.tsx
-- Owinięcie aplikacji w `AuthProvider`
+### 4. Baner "Ostatnio ogladany film"
+- Zielone tlo (zamiast niebieskiego z Wistia)
+- Tytul filmu, data ostatniej edycji
+- Przycisk "Wznow" i X do zamkniecia
 
-## Uwaga
-To rozwiązanie tymczasowe -- hasło jest w kodzie. Po podłączeniu Supabase przeniesiemy auth na prawdziwy backend.
+### 5. Sekcja glowna -- dwie kolumny
+- **Lewa (szersza)**: "Najczesciej odtwarzane filmy" -- tabela z miniatura, tytulem, data, liczba odtworzen, engagement %
+- **Prawa (wezsza)**: "Ostatnio udostepnione" -- karta z miniatura, linkiem, statystykami
 
+### 6. Mock data
+- Zaktualizowane dane filmow z polami: title, created, plays, engagement
+- Dane do panelu "ostatnio udostepnione"
+
+## Pliki do zmiany
+- `src/pages/Dashboard.tsx` -- pelna przebudowa layoutu
+
+## Uwagi
+- Upload bedzie na razie tylko UI (przycisk + dialog placeholder)
+- Kolorystyka zostaje zielona, ale layout 1:1 jak Wistia
+- Responsywnosc zachowana (na mobile kolumny sie zwijaja)
