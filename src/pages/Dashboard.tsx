@@ -13,6 +13,7 @@ import UploadDialog from "@/components/dashboard/UploadDialog";
 import UploadQueue from "@/components/dashboard/UploadQueue";
 import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
+import BrandKitView from "@/components/dashboard/BrandKitView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
 
@@ -25,7 +26,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics">("home");
+  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit">("home");
   const { videos, folders, loading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
@@ -118,7 +119,7 @@ const Dashboard = () => {
         </header>
 
         <main className="flex-1 p-4 md:p-6 space-y-6">
-          {activeView !== "analytics" && (
+          {activeView !== "analytics" && activeView !== "brandkit" && (
             <ActionCards
               totalPlays={totalPlays}
               onUploadClick={() => setUploadOpen(true)}
@@ -145,7 +146,7 @@ const Dashboard = () => {
             </nav>
           )}
 
-          {activeView !== "analytics" && bannerVisible && lastVideo && (
+          {activeView !== "analytics" && activeView !== "brandkit" && bannerVisible && lastVideo && (
             <RecentBanner
               title={lastVideo.title}
               videoId={lastVideo.id}
@@ -161,6 +162,8 @@ const Dashboard = () => {
             </div>
           ) : activeView === "analytics" ? (
             <AnalyticsView videos={videos} folders={folders} />
+          ) : activeView === "brandkit" ? (
+            <BrandKitView />
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
