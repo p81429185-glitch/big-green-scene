@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, HardDrive, Calendar, Play } from "lucide-react";
+import {
+  ArrowLeft,
+  HardDrive,
+  Calendar,
+  Play,
+  MoreHorizontal,
+  Code,
+  Share2,
+  Scissors,
+  Settings,
+  BarChart3,
+  Pencil,
+  FileVideo,
+  MessageSquare,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -11,6 +25,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Video {
@@ -37,6 +61,13 @@ function formatSize(bytes: number) {
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
+const actionTabs = [
+  { icon: Pencil, label: "Edytuj" },
+  { icon: Settings, label: "Dostosuj" },
+  { icon: BarChart3, label: "Analityka" },
+  { icon: Scissors, label: "Klipy" },
+];
+
 const VideoPlayer = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -44,6 +75,7 @@ const VideoPlayer = () => {
   const [folder, setFolder] = useState<Folder | null>(null);
   const [loading, setLoading] = useState(true);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [embedOpen, setEmbedOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -63,7 +95,6 @@ const VideoPlayer = () => {
       const v = data as Video;
       setVideo(v);
 
-      // Fetch folder name if video is in a folder
       if (v.folder_id) {
         const { data: folderData } = await supabase
           .from("folders")
@@ -76,13 +107,21 @@ const VideoPlayer = () => {
       const { data: urlData } = supabase.storage.from("videos").getPublicUrl(v.storage_path);
       setVideoUrl(urlData.publicUrl);
 
-      // Increment plays
       await supabase.from("videos").update({ plays: v.plays + 1 }).eq("id", id);
       setLoading(false);
     };
 
     load();
   }, [id]);
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link skopiowany do schowka");
+  };
+
+  const embedCode = videoUrl
+    ? `<iframe src="${videoUrl}" width="640" height="360" frameborder="0" allowfullscreen></iframe>`
+    : "";
 
   if (loading) {
     return (
@@ -106,85 +145,160 @@ const VideoPlayer = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Navigation */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/dashboard">Dashboard</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              {folder && (
-                <>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbLink asChild>
-                      <Link to="/dashboard">{folder.name}</Link>
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                </>
-              )}
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{video.title}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+        {/* Breadcrumb */}
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/dashboard">Biblioteka</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            {folder && (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link to="/dashboard">{folder.name}</Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+              </>
+            )}
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{video.title}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
+        {/* Header row: title + action buttons */}
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold tracking-tight truncate">{video.title}</h1>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="ghost" size="icon">
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+            <Button variant="default" size="sm" onClick={() => setEmbedOpen(true)}>
+              <Code className="h-4 w-4 mr-1.5" />
+              Osadź
+            </Button>
+            <Button variant="default" size="sm" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-1.5" />
+              Udostępnij
+            </Button>
+          </div>
         </div>
 
-        {/* Title */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{video.title}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{video.file_name}</p>
+        {/* Action tabs row */}
+        <div className="flex items-center gap-1 border-b border-border">
+          {actionTabs.map(({ icon: Icon, label }) => (
+            <button
+              key={label}
+              onClick={() => toast.info("Wkrótce dostępne")}
+              className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-t-md transition-colors"
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Video Player */}
-        <div className="rounded-lg overflow-hidden shadow-lg bg-black aspect-video">
-          <video
-            src={videoUrl}
-            controls
-            autoPlay
-            className="w-full h-full"
-            poster={video.thumbnail_url || undefined}
-          />
-        </div>
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: video player */}
+          <div className="lg:col-span-2">
+            <div className="rounded-lg overflow-hidden shadow-lg bg-black aspect-video">
+              <video
+                src={videoUrl}
+                controls
+                autoPlay
+                className="w-full h-full"
+                poster={video.thumbnail_url || undefined}
+              />
+            </div>
+          </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <HardDrive className="h-5 w-5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">Rozmiar</p>
-                <p className="font-semibold">{formatSize(video.size)}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">Data dodania</p>
-                <p className="font-semibold">{new Date(video.created_at).toLocaleDateString("pl-PL")}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <Play className="h-5 w-5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">Odtworzenia</p>
-                <p className="font-semibold">{video.plays + 1}</p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Right: sidebar panel */}
+          <div className="lg:col-span-1">
+            <Card className="h-full">
+              <Tabs defaultValue="details" className="h-full flex flex-col">
+                <TabsList className="w-full rounded-none border-b border-border bg-transparent px-2 pt-2">
+                  <TabsTrigger value="details" className="flex-1">Szczegóły</TabsTrigger>
+                  <TabsTrigger value="comments" className="flex-1">Komentarze</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="details" className="flex-1 p-4 space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Rozmiar</p>
+                        <p className="text-sm font-medium">{formatSize(video.size)}</p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Data dodania</p>
+                        <p className="text-sm font-medium">
+                          {new Date(video.created_at).toLocaleDateString("pl-PL")}
+                        </p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center gap-3">
+                      <Play className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Odtworzenia</p>
+                        <p className="text-sm font-medium">{video.plays + 1}</p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center gap-3">
+                      <FileVideo className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Nazwa pliku</p>
+                        <p className="text-sm font-medium truncate">{video.file_name}</p>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="comments" className="flex-1 p-4">
+                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground gap-2">
+                    <MessageSquare className="h-8 w-8" />
+                    <p className="text-sm">Brak komentarzy</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </div>
         </div>
       </div>
+
+      {/* Embed dialog */}
+      <Dialog open={embedOpen} onOpenChange={setEmbedOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Kod osadzania</DialogTitle>
+            <DialogDescription>
+              Skopiuj poniższy kod i wklej go na swojej stronie.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-muted rounded-md p-3">
+            <code className="text-xs break-all select-all">{embedCode}</code>
+          </div>
+          <Button
+            onClick={() => {
+              navigator.clipboard.writeText(embedCode);
+              toast.success("Kod skopiowany do schowka");
+            }}
+          >
+            Kopiuj kod
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
