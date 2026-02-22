@@ -15,6 +15,8 @@ const StatusIcon = ({ status }: { status: QueueItem["status"] }) => {
       return <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />;
     case "uploading":
       return <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />;
+    case "processing":
+      return <Loader2 className="h-4 w-4 text-amber-500 shrink-0 animate-spin" />;
     case "error":
       return <AlertCircle className="h-4 w-4 text-destructive shrink-0" />;
     default:
@@ -90,6 +92,12 @@ const UploadQueue = ({
                 </div>
                 {item.status === "uploading" && (
                   <Progress value={item.progress} className="h-1" />
+                )}
+                {item.status === "processing" && (
+                  <div className="space-y-1">
+                    <Progress value={95} className="h-1 animate-pulse" />
+                    <p className="text-xs text-muted-foreground">Przetwarzanie na serwerze...</p>
+                  </div>
                 )}
                 {item.status === "error" && (
                   <p className="text-xs text-destructive">{item.error}</p>

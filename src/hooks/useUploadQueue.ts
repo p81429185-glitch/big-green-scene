@@ -7,7 +7,7 @@ export interface QueueItem {
   fileSize: number;
   folderId: string | null;
   progress: number;
-  status: "waiting" | "uploading" | "done" | "error";
+  status: "waiting" | "uploading" | "processing" | "done" | "error";
   error?: string;
 }
 
@@ -37,7 +37,7 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
     setQueue([]);
   }, []);
 
-  const isActive = queue.some((item) => item.status === "waiting" || item.status === "uploading");
+  const isActive = queue.some((item) => item.status === "waiting" || item.status === "uploading" || item.status === "processing");
   const hasItems = queue.length > 0;
 
   const doneCount = queue.filter((i) => i.status === "done").length;
@@ -67,7 +67,13 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
       try {
         await uploadVideo(nextItem.file, nextItem.folderId, (pct) => {
           setQueue((prev) =>
-            prev.map((i) => (i.id === nextItem.id ? { ...i, progress: pct } : i))
+            prev.map((i) => {
+              if (i.id !== nextItem.id) return i;
+              if (pct >= 95 && i.status !== "processing") {
+                return { ...i, progress: pct, status: "processing" as const };
+              }
+              return { ...i, progress: pct };
+            })
           );
         });
         setQueue((prev) =>
