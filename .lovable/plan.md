@@ -1,34 +1,32 @@
 
 
-# Big Hosting – Aplikacja do hostingu filmów 🎬
+# System logowania tylko dla admina (bez Supabase)
 
-## Opis
-Aplikacja webowa do hostingu i zarządzania filmami dla Ciebie i Twojej drużyny, inspirowana Vimeo i Wistia. Zielona kolorystyka, nowoczesny design.
+## Co zrobimy
+Stworzymy prosty system logowania z hardcoded danymi admina, bez publicznej rejestracji. Supabase podłączymy później.
 
-## Strony do zbudowania
+## Zmiany
 
-### 1. Strona główna (Landing Page)
-- Hero sekcja z hasłem i przyciskami CTA ("Zaloguj się" / "Zarejestruj się")
-- Sekcja z kluczowymi funkcjami (hosting, organizacja, udostępnianie)
-- Stopka z linkami
-- Zielona kolorystyka i profesjonalny, nowoczesny wygląd
+### 1. Kontekst autoryzacji (`src/contexts/AuthContext.tsx`)
+- Nowy kontekst React przechowujący stan zalogowanego użytkownika
+- Hardcoded dane admina: `michalrucznaj@gmail.com` / `Admin123`
+- Funkcje: `login()`, `logout()`, `isAuthenticated`
+- Stan zapisywany w `localStorage` (przetrwa odświeżenie strony)
 
-### 2. Strona logowania i rejestracji
-- Formularz logowania (email + hasło)
-- Formularz rejestracji (imię, email, hasło)
-- Przełączanie między logowaniem a rejestracją
-- Na razie bez prawdziwej logiki auth – tylko UI
+### 2. Strona logowania (`src/pages/Auth.tsx`)
+- Usunięcie opcji rejestracji -- tylko formularz logowania
+- Walidacja danych z hardcoded adminem
+- Po zalogowaniu przekierowanie na `/dashboard`
+- Komunikat błędu przy złych danych
 
-### 3. Dashboard
-- Nawigacja boczna (sidebar) z menu: Filmy, Foldery, Ustawienia
-- Górny pasek z avatarem użytkownika i nazwą
-- Widok siatki/listy filmów (mockowe dane)
-- Przycisk "Dodaj film"
-- Karty filmów z miniaturą, tytułem, datą i liczbą wyświetleń
-- Pusta strona ustawień (placeholder)
+### 3. Ochrona dashboardu (`src/pages/Dashboard.tsx`)
+- Przekierowanie na `/auth` gdy użytkownik nie jest zalogowany
+- Przycisk wylogowania w sidebarze
+- Wyświetlanie emaila admina zamiast "Jan Kowalski"
 
-## Design
-- Kolorystyka: zielona paleta (ciemna zieleń jako primary, jasna zieleń jako akcent)
-- Czysty, minimalistyczny interfejs inspirowany Wistia
-- Responsywny layout (desktop + mobile)
+### 4. App.tsx
+- Owinięcie aplikacji w `AuthProvider`
+
+## Uwaga
+To rozwiązanie tymczasowe -- hasło jest w kodzie. Po podłączeniu Supabase przeniesiemy auth na prawdziwy backend.
 
