@@ -30,6 +30,7 @@ import {
   Monitor,
   MessageSquareText,
   Layers,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,6 +40,72 @@ interface EmbedDialogProps {
   videoUrl: string;
   thumbnailUrl: string | null;
   transcription?: string | null;
+}
+
+function generateCustomPlayerCode(
+  videoUrl: string,
+  brandColor: string,
+  brandIconColor: string,
+  brandProgressColor: string,
+  brandLogoUrl: string,
+  brandPlayBgColor: string,
+  sizeMode: string,
+  embedWidth: string,
+  embedHeight: string,
+) {
+  const uid = "p" + Math.random().toString(36).slice(2, 10);
+  const vid = "v" + uid;
+  const prog = "bar" + uid;
+  const fill = "fill" + uid;
+  const timeEl = "time" + uid;
+  const playBtn = "pbtn" + uid;
+
+  const sizeStyle = sizeMode === "responsive"
+    ? "width:100%;max-width:100%;"
+    : `width:${embedWidth}px;`;
+
+  const logoHtml = brandLogoUrl.trim()
+    ? `<img src="${brandLogoUrl.trim()}" style="position:absolute;top:12px;right:12px;height:30px;z-index:10;pointer-events:none;" />`
+    : "";
+
+  return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
+  ${logoHtml}
+  <video src="${videoUrl}" style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:1;transition:opacity .3s;" id="big${playBtn}">
+    <div style="width:64px;height:64px;border-radius:50%;background:${brandPlayBgColor};display:flex;align-items:center;justify-content:center;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="${brandIconColor}"><polygon points="5,3 19,12 5,21"/></svg>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:0;left:0;right:0;background:${brandColor};padding:6px 12px;display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s;" id="ctrl${uid}">
+    <button id="${playBtn}" style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="${brandIconColor}" id="ico${playBtn}"><polygon points="5,3 19,12 5,21"/></svg>
+    </button>
+    <span style="color:${brandIconColor};font-size:12px;min-width:80px;" id="${timeEl}">0:00 / 0:00</span>
+    <div style="flex:1;height:4px;background:rgba(255,255,255,0.3);border-radius:2px;cursor:pointer;position:relative;" id="${prog}">
+      <div style="width:0%;height:100%;background:${brandProgressColor};border-radius:2px;" id="${fill}"></div>
+    </div>
+    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" onclick="(function(){var v=document.getElementById('${vid}');v.muted=!v.muted;})()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    </button>
+    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" onclick="(function(){var w=document.getElementById('${uid}');if(w.requestFullscreen)w.requestFullscreen();else if(w.webkitRequestFullscreen)w.webkitRequestFullscreen();})()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    </button>
+  </div>
+  <script>
+  (function(){
+    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}");
+    function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
+    function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
+    v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
+    v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
+    v.addEventListener("pause",function(){ico.innerHTML='<polygon points="5,3 19,12 5,21" fill="${brandIconColor}"/>';});
+    v.addEventListener("timeupdate",function(){if(v.duration){var p=(v.currentTime/v.duration)*100;fl.style.width=p+"%";tm.textContent=fmt(v.currentTime)+" / "+fmt(v.duration);}});
+    bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
+    w.addEventListener("mouseenter",function(){c.style.opacity="1";});
+    w.addEventListener("mouseleave",function(){if(!v.paused)c.style.opacity="0";});
+  })();
+  </script>
+</div>`;
 }
 
 const EmbedDialog = ({
@@ -67,16 +134,28 @@ const EmbedDialog = ({
   const [popoverResponsive, setPopoverResponsive] = useState(false);
   const [popoverText, setPopoverText] = useState("Kliknij, aby obejrzeć wideo");
 
+  // Branding states
+  const [brandColor, setBrandColor] = useState("#16a34a");
+  const [brandIconColor, setBrandIconColor] = useState("#ffffff");
+  const [brandProgressColor, setBrandProgressColor] = useState("#ffffff");
+  const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  const [brandPlayBgColor, setBrandPlayBgColor] = useState("rgba(22,163,74,0.8)");
+  const [brandingOpen, setBrandingOpen] = useState(false);
+
   const embedCode = useMemo(() => {
     let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
-      if (sizeMode === "responsive") {
-        rawCode = `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
-  <iframe src="${videoUrl}" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allowfullscreen></iframe>
-</div>`;
-      } else {
-        rawCode = `<iframe src="${videoUrl}" width="${embedWidth}" height="${embedHeight}" frameborder="0" allowfullscreen></iframe>`;
-      }
+      rawCode = generateCustomPlayerCode(
+        videoUrl,
+        brandColor,
+        brandIconColor,
+        brandProgressColor,
+        brandLogoUrl,
+        brandPlayBgColor,
+        sizeMode,
+        embedWidth,
+        embedHeight,
+      );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
         const thumb = thumbnailUrl || videoUrl;
@@ -116,12 +195,159 @@ const EmbedDialog = ({
     embedTab, sizeMode, embedWidth, embedHeight, videoUrl, thumbnailUrl,
     popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
     domainRestricted, allowedDomain,
+    brandColor, brandIconColor, brandProgressColor, brandLogoUrl, brandPlayBgColor,
   ]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(embedCode);
     toast.success("Kod skopiowany do schowka");
   };
+
+  // Compute play button bg from brand color when brand color changes
+  const handleBrandColorChange = (color: string) => {
+    setBrandColor(color);
+    // Convert hex to rgba with 0.8 opacity for play button bg
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    setBrandPlayBgColor(`rgba(${r},${g},${b},0.8)`);
+  };
+
+  const brandingJsx = (
+    <Collapsible open={brandingOpen} onOpenChange={setBrandingOpen}>
+      <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+        {brandingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        <Palette className="h-4 w-4" />
+        Branding
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-4 pt-2">
+        {/* Logo URL */}
+        <div className="space-y-1.5">
+          <Label className="text-sm">URL logo</Label>
+          <Input
+            value={brandLogoUrl}
+            onChange={(e) => setBrandLogoUrl(e.target.value)}
+            placeholder="https://example.com/logo.png"
+            className="h-8 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">Logo pojawi się w prawym górnym rogu playera</p>
+        </div>
+
+        {/* Color pickers */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Pasek kontrolny</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={brandColor}
+                onChange={(e) => handleBrandColorChange(e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+              />
+              <span className="text-xs text-muted-foreground font-mono">{brandColor}</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ikony / przyciski</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={brandIconColor}
+                onChange={(e) => setBrandIconColor(e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+              />
+              <span className="text-xs text-muted-foreground font-mono">{brandIconColor}</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Pasek postępu</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={brandProgressColor}
+                onChange={(e) => setBrandProgressColor(e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+              />
+              <span className="text-xs text-muted-foreground font-mono">{brandProgressColor}</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tło przycisku play</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={brandColor}
+                onChange={(e) => {
+                  const c = e.target.value;
+                  const r = parseInt(c.slice(1, 3), 16);
+                  const g = parseInt(c.slice(3, 5), 16);
+                  const b = parseInt(c.slice(5, 7), 16);
+                  setBrandPlayBgColor(`rgba(${r},${g},${b},0.8)`);
+                }}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+              />
+              <span className="text-xs text-muted-foreground font-mono">{brandPlayBgColor}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live preview */}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Podgląd</Label>
+          <div className="rounded-lg overflow-hidden bg-black aspect-video border border-border relative">
+            {thumbnailUrl ? (
+              <img src={thumbnailUrl} alt="Podgląd" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-neutral-900" />
+            )}
+            {/* Logo overlay */}
+            {brandLogoUrl.trim() && (
+              <img
+                src={brandLogoUrl.trim()}
+                alt="Logo"
+                className="absolute top-2 right-2 h-5 z-10"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
+            {/* Big play button overlay */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{ background: brandPlayBgColor }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill={brandIconColor}>
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+              </div>
+            </div>
+            {/* Control bar overlay */}
+            <div
+              className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 px-2 py-1.5"
+              style={{ background: brandColor }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={brandIconColor}>
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+              <span className="text-[10px]" style={{ color: brandIconColor }}>0:00 / 3:45</span>
+              <div className="flex-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.3)" }}>
+                <div className="h-full rounded-full w-1/3" style={{ background: brandProgressColor }} />
+              </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={brandIconColor} strokeWidth="2">
+                <polygon points="11,5 6,9 2,9 2,15 6,15 11,19" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              </svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={brandIconColor} strokeWidth="2">
+                <polyline points="15,3 21,3 21,9" />
+                <polyline points="9,21 3,21 3,15" />
+                <line x1="21" y1="3" x2="14" y2="10" />
+                <line x1="3" y1="21" x2="10" y2="14" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 
   const sizeOptionsJsx = (
     <div className="space-y-3">
@@ -372,6 +598,8 @@ const EmbedDialog = ({
               ) : (
                 <>
                   {videoPreviewJsx}
+                  {brandingJsx}
+                  <Separator />
                   {sizeOptionsJsx}
                   <Separator />
                   {advancedOptionsJsx}
