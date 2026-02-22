@@ -1,38 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
-  ArrowLeft,
-  HardDrive,
-  Calendar,
-  Play,
-  MoreHorizontal,
-  Code,
-  Share2,
-  Scissors,
-  Settings,
-  BarChart3,
-  Pencil,
-  FileVideo,
-  MessageSquare,
-  FileText,
-  Loader2,
-  RefreshCw,
-  ExternalLink,
+  ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
+  Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
+  FileText, ExternalLink, BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
+  Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink,
+  BreadcrumbPage, BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import EmbedDialog from "@/components/dashboard/EmbedDialog";
+import ChaptersTab from "@/components/video/ChaptersTab";
+import TranscriptionTab from "@/components/video/TranscriptionTab";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -71,13 +54,14 @@ const actionTabs = [
 const VideoPlayer = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [folder, setFolder] = useState<Folder | null>(null);
   const [loading, setLoading] = useState(true);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [embedOpen, setEmbedOpen] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
+  const [subtitlesSrt, setSubtitlesSrt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -97,6 +81,7 @@ const VideoPlayer = () => {
       const v = data as Video;
       setVideo(v);
       setTranscription(v.transcription ?? null);
+      setSubtitlesSrt((data as any).subtitles_srt ?? null);
 
       if (v.folder_id) {
         const { data: folderData } = await supabase
@@ -122,28 +107,10 @@ const VideoPlayer = () => {
     toast.success("Link skopiowany do schowka");
   };
 
-  const handleTranscribe = async () => {
-    if (!id) return;
-    setTranscribing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("transcribe-video", {
-        body: { videoId: id },
-      });
-
-      if (error) throw error;
-
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      setTranscription(data.transcription);
-      toast.success("Transkrypcja zakończona");
-    } catch (e: any) {
-      console.error("Transcription error:", e);
-      toast.error("Błąd podczas transkrypcji");
-    } finally {
-      setTranscribing(false);
+  const handleSeek = (seconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds;
+      videoRef.current.play();
     }
   };
 
@@ -233,6 +200,7 @@ const VideoPlayer = () => {
           <div className="lg:col-span-2">
             <div className="rounded-lg overflow-hidden shadow-lg bg-black aspect-video">
               <video
+                ref={videoRef}
                 src={videoUrl}
                 controls
                 autoPlay
@@ -240,11 +208,7 @@ const VideoPlayer = () => {
                 poster={video.thumbnail_url || undefined}
               />
             </div>
-            <Button
-              variant="outline"
-              className="w-full mt-3"
-              asChild
-            >
+            <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1.5" />
                 Otwórz w NotebookLM
@@ -257,12 +221,16 @@ const VideoPlayer = () => {
             <Card className="h-full">
               <Tabs defaultValue="details" className="h-full flex flex-col">
                 <TabsList className="w-full rounded-none border-b border-border bg-transparent px-2 pt-2">
-                  <TabsTrigger value="details" className="flex-1">Szczegóły</TabsTrigger>
-                  <TabsTrigger value="transcription" className="flex-1">
+                  <TabsTrigger value="details" className="flex-1 text-xs">Szczegóły</TabsTrigger>
+                  <TabsTrigger value="chapters" className="flex-1 text-xs">
+                    <BookOpen className="h-3.5 w-3.5 mr-1" />
+                    Rozdziały
+                  </TabsTrigger>
+                  <TabsTrigger value="transcription" className="flex-1 text-xs">
                     <FileText className="h-3.5 w-3.5 mr-1" />
                     Transkrypcja
                   </TabsTrigger>
-                  <TabsTrigger value="comments" className="flex-1">Komentarze</TabsTrigger>
+                  <TabsTrigger value="comments" className="flex-1 text-xs">Komentarze</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="flex-1 p-4 space-y-4">
@@ -303,38 +271,18 @@ const VideoPlayer = () => {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="chapters" className="flex-1 p-4">
+                  <ChaptersTab videoId={video.id} onSeek={handleSeek} />
+                </TabsContent>
+
                 <TabsContent value="transcription" className="flex-1 p-4">
-                  {transcribing ? (
-                    <div className="flex flex-col items-center justify-center h-32 gap-3">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <p className="text-sm text-muted-foreground">Trwa transkrypcja...</p>
-                      <p className="text-xs text-muted-foreground">To może potrwać do 60 sekund</p>
-                    </div>
-                  ) : transcription ? (
-                    <div className="space-y-3">
-                      <ScrollArea className="h-[300px]">
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{transcription}</p>
-                      </ScrollArea>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleTranscribe}
-                        className="w-full"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-1.5" />
-                        Transkrybuj ponownie
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-32 gap-3">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Brak transkrypcji</p>
-                      <Button size="sm" onClick={handleTranscribe}>
-                        <FileText className="h-4 w-4 mr-1.5" />
-                        Transkrybuj
-                      </Button>
-                    </div>
-                  )}
+                  <TranscriptionTab
+                    videoId={video.id}
+                    transcription={transcription}
+                    onTranscriptionChange={setTranscription}
+                    subtitlesSrt={subtitlesSrt}
+                    onSubtitlesChange={setSubtitlesSrt}
+                  />
                 </TabsContent>
 
                 <TabsContent value="comments" className="flex-1 p-4">
@@ -349,7 +297,6 @@ const VideoPlayer = () => {
         </div>
       </div>
 
-      {/* Embed dialog */}
       <EmbedDialog
         open={embedOpen}
         onOpenChange={setEmbedOpen}
