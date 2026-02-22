@@ -1,0 +1,470 @@
+import { useState, useMemo } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
+import {
+  Eye,
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Code,
+  Mail,
+  FileText,
+  Monitor,
+  MessageSquareText,
+  Layers,
+} from "lucide-react";
+import { toast } from "sonner";
+
+interface EmbedDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  videoUrl: string;
+  thumbnailUrl: string | null;
+}
+
+const EmbedDialog = ({
+  open,
+  onOpenChange,
+  videoUrl,
+  thumbnailUrl,
+}: EmbedDialogProps) => {
+  const [embedTab, setEmbedTab] = useState("inline");
+  const [sizeMode, setSizeMode] = useState("responsive");
+  const [embedWidth, setEmbedWidth] = useState("640");
+  const [embedHeight, setEmbedHeight] = useState("360");
+  const [embedMethod, setEmbedMethod] = useState("standard");
+  const [useLegacy, setUseLegacy] = useState(false);
+  const [useOembed, setUseOembed] = useState(false);
+  const [injectSeo, setInjectSeo] = useState(true);
+  const [showCode, setShowCode] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Popover state
+  const [popoverMode, setPopoverMode] = useState("thumbnail");
+  const [popoverWidth, setPopoverWidth] = useState("150");
+  const [popoverHeight, setPopoverHeight] = useState("84");
+  const [popoverResponsive, setPopoverResponsive] = useState(false);
+  const [popoverText, setPopoverText] = useState("Kliknij, aby obejrzeć wideo");
+
+  const embedCode = useMemo(() => {
+    if (embedTab === "inline" || embedTab === "llm") {
+      if (sizeMode === "responsive") {
+        return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+  <iframe src="${videoUrl}" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allowfullscreen></iframe>
+</div>`;
+      }
+      return `<iframe src="${videoUrl}" width="${embedWidth}" height="${embedHeight}" frameborder="0" allowfullscreen></iframe>`;
+    }
+    if (embedTab === "popover") {
+      if (popoverMode === "thumbnail") {
+        const thumb = thumbnailUrl || videoUrl;
+        if (popoverResponsive) {
+          return `<a href="${videoUrl}" target="_blank" rel="noopener">
+  <img src="${thumb}" style="width:100%;max-width:${popoverWidth}px;" alt="Wideo" />
+</a>`;
+        }
+        return `<a href="${videoUrl}" target="_blank" rel="noopener">
+  <img src="${thumb}" width="${popoverWidth}" height="${popoverHeight}" alt="Wideo" />
+</a>`;
+      }
+      return `<a href="${videoUrl}" target="_blank" rel="noopener">${popoverText}</a>`;
+    }
+    return "";
+  }, [
+    embedTab,
+    sizeMode,
+    embedWidth,
+    embedHeight,
+    videoUrl,
+    thumbnailUrl,
+    popoverMode,
+    popoverWidth,
+    popoverHeight,
+    popoverResponsive,
+    popoverText,
+  ]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(embedCode);
+    toast.success("Kod skopiowany do schowka");
+  };
+
+  const SizeOptions = () => (
+    <div className="space-y-3">
+      <Label className="text-sm font-medium">Rozmiar</Label>
+      <RadioGroup value={sizeMode} onValueChange={setSizeMode} className="space-y-3">
+        <div className="flex items-start gap-3">
+          <RadioGroupItem value="responsive" id="size-responsive" className="mt-0.5" />
+          <div>
+            <Label htmlFor="size-responsive" className="font-medium cursor-pointer">
+              Responsywny
+              <span className="ml-2 text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                Zalecany
+              </span>
+            </Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Najłatwiejsza opcja. Player dostosuje się do szerokości kontenera.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3">
+          <RadioGroupItem value="fixed" id="size-fixed" className="mt-0.5" />
+          <div>
+            <Label htmlFor="size-fixed" className="font-medium cursor-pointer">
+              Stały rozmiar
+            </Label>
+            {sizeMode === "fixed" && (
+              <div className="flex items-center gap-2 mt-2">
+                <Input
+                  type="number"
+                  value={embedWidth}
+                  onChange={(e) => setEmbedWidth(e.target.value)}
+                  className="w-20 h-8 text-sm"
+                />
+                <span className="text-xs text-muted-foreground">×</span>
+                <Input
+                  type="number"
+                  value={embedHeight}
+                  onChange={(e) => setEmbedHeight(e.target.value)}
+                  className="w-20 h-8 text-sm"
+                />
+                <span className="text-xs text-muted-foreground">px</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </RadioGroup>
+    </div>
+  );
+
+  const AdvancedOptions = () => (
+    <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+      <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+        {advancedOpen ? (
+          <ChevronUp className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
+        Zaawansowane opcje
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-4 pt-2">
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Metoda osadzania</Label>
+          <RadioGroup value={embedMethod} onValueChange={setEmbedMethod} className="space-y-2">
+            <div className="flex items-start gap-3">
+              <RadioGroupItem value="standard" id="method-standard" className="mt-0.5" />
+              <div>
+                <Label htmlFor="method-standard" className="font-medium cursor-pointer">
+                  Standardowy
+                  <span className="ml-2 text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                    Zalecany
+                  </span>
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Osadzanie JavaScript — lepsze śledzenie i personalizacja.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <RadioGroupItem value="fallback" id="method-fallback" className="mt-0.5" />
+              <div>
+                <Label htmlFor="method-fallback" className="font-medium cursor-pointer">
+                  Fallback (iframe)
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Prosty iframe — kompatybilny z większością platform.
+                </p>
+              </div>
+            </div>
+          </RadioGroup>
+        </div>
+        <Separator />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="legacy"
+              checked={useLegacy}
+              onCheckedChange={(v) => setUseLegacy(v === true)}
+            />
+            <Label htmlFor="legacy" className="text-sm cursor-pointer">
+              Użyj starszego kodu embed
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="oembed"
+              checked={useOembed}
+              onCheckedChange={(v) => setUseOembed(v === true)}
+            />
+            <Label htmlFor="oembed" className="text-sm cursor-pointer">
+              Użyj oEmbed URL
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="seo"
+              checked={injectSeo}
+              onCheckedChange={(v) => setInjectSeo(v === true)}
+            />
+            <Label htmlFor="seo" className="text-sm cursor-pointer">
+              Dodaj metadane SEO
+            </Label>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
+  const VideoPreview = () => (
+    <div className="rounded-lg overflow-hidden bg-black aspect-video border border-border">
+      {thumbnailUrl ? (
+        <img
+          src={thumbnailUrl}
+          alt="Podgląd wideo"
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <video
+          src={videoUrl}
+          className="w-full h-full"
+          muted
+          playsInline
+        />
+      )}
+    </div>
+  );
+
+  const PlaceholderTab = ({ label }: { label: string }) => (
+    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+      <Mail className="h-8 w-8" />
+      <p className="text-sm font-medium">{label}</p>
+      <p className="text-xs">Wkrótce dostępne</p>
+    </div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+        {/* Header */}
+        <div className="p-6 pb-4 space-y-3">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Osadź media</DialogTitle>
+            <DialogDescription>Wybierz sposób osadzania.</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-start gap-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 rounded-md px-3 py-2.5 text-xs">
+            <Info className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              Standardowe osadzanie inline jest najlepsze dla większości platform CMS.
+            </span>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <Tabs
+          value={embedTab}
+          onValueChange={setEmbedTab}
+          className="flex-1 flex flex-col min-h-0"
+        >
+          <div className="px-6">
+            <TabsList className="w-full bg-transparent border-b border-border rounded-none h-auto p-0 gap-0">
+              <TabsTrigger
+                value="inline"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+              >
+                <Monitor className="h-4 w-4 mr-1.5" />
+                Inline
+              </TabsTrigger>
+              <TabsTrigger
+                value="popover"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+              >
+                <Layers className="h-4 w-4 mr-1.5" />
+                Popover
+              </TabsTrigger>
+              <TabsTrigger
+                value="llm"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+              >
+                <MessageSquareText className="h-4 w-4 mr-1.5" />
+                LLM-Friendly
+              </TabsTrigger>
+              <TabsTrigger
+                value="email"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+              >
+                <Mail className="h-4 w-4 mr-1.5" />
+                Email
+              </TabsTrigger>
+              <TabsTrigger
+                value="transcript"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+              >
+                <FileText className="h-4 w-4 mr-1.5" />
+                Transkrypcja
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {/* Inline tab */}
+            <TabsContent value="inline" className="mt-0 space-y-4">
+              {showCode ? (
+                <div className="bg-muted rounded-md p-3">
+                  <code className="text-xs break-all whitespace-pre-wrap select-all">
+                    {embedCode}
+                  </code>
+                </div>
+              ) : (
+                <>
+                  <VideoPreview />
+                  <SizeOptions />
+                  <Separator />
+                  <AdvancedOptions />
+                </>
+              )}
+            </TabsContent>
+
+            {/* Popover tab */}
+            <TabsContent value="popover" className="mt-0 space-y-4">
+              {showCode ? (
+                <div className="bg-muted rounded-md p-3">
+                  <code className="text-xs break-all whitespace-pre-wrap select-all">
+                    {embedCode}
+                  </code>
+                </div>
+              ) : (
+                <RadioGroup
+                  value={popoverMode}
+                  onValueChange={setPopoverMode}
+                  className="space-y-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <RadioGroupItem value="thumbnail" id="pop-thumb" className="mt-0.5" />
+                    <div className="space-y-2">
+                      <Label htmlFor="pop-thumb" className="font-medium cursor-pointer">
+                        Wyświetl jako miniaturkę
+                      </Label>
+                      {popoverMode === "thumbnail" && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={popoverWidth}
+                              onChange={(e) => setPopoverWidth(e.target.value)}
+                              className="w-20 h-8 text-sm"
+                            />
+                            <span className="text-xs text-muted-foreground">×</span>
+                            <Input
+                              type="number"
+                              value={popoverHeight}
+                              onChange={(e) => setPopoverHeight(e.target.value)}
+                              className="w-20 h-8 text-sm"
+                            />
+                            <span className="text-xs text-muted-foreground">px</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="pop-responsive"
+                              checked={popoverResponsive}
+                              onCheckedChange={(v) => setPopoverResponsive(v === true)}
+                            />
+                            <Label htmlFor="pop-responsive" className="text-sm cursor-pointer">
+                              Responsywny
+                            </Label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <RadioGroupItem value="textlink" id="pop-text" className="mt-0.5" />
+                    <div className="space-y-2">
+                      <Label htmlFor="pop-text" className="font-medium cursor-pointer">
+                        Wyświetl jako link tekstowy
+                      </Label>
+                      {popoverMode === "textlink" && (
+                        <Input
+                          value={popoverText}
+                          onChange={(e) => setPopoverText(e.target.value)}
+                          className="h-8 text-sm"
+                          placeholder="Tekst linku..."
+                        />
+                      )}
+                    </div>
+                  </div>
+                </RadioGroup>
+              )}
+            </TabsContent>
+
+            {/* LLM-Friendly tab */}
+            <TabsContent value="llm" className="mt-0 space-y-4">
+              {showCode ? (
+                <div className="bg-muted rounded-md p-3">
+                  <code className="text-xs break-all whitespace-pre-wrap select-all">
+                    {embedCode}
+                  </code>
+                </div>
+              ) : (
+                <>
+                  <VideoPreview />
+                  <SizeOptions />
+                </>
+              )}
+            </TabsContent>
+
+            {/* Email tab */}
+            <TabsContent value="email" className="mt-0">
+              <PlaceholderTab label="Osadzanie w emailach" />
+            </TabsContent>
+
+            {/* Transcript tab */}
+            <TabsContent value="transcript" className="mt-0">
+              <PlaceholderTab label="Osadzanie transkrypcji" />
+            </TabsContent>
+          </div>
+        </Tabs>
+
+        {/* Footer */}
+        <div className="border-t border-border px-6 py-3 flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowCode((prev) => !prev)}
+            className="text-muted-foreground"
+          >
+            {showCode ? (
+              <EyeOff className="h-4 w-4 mr-1.5" />
+            ) : (
+              <Eye className="h-4 w-4 mr-1.5" />
+            )}
+            {showCode ? "Ukryj kod embed" : "Pokaż kod embed"}
+          </Button>
+          <Button size="sm" onClick={handleCopy}>
+            <Code className="h-4 w-4 mr-1.5" />
+            Kopiuj kod
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default EmbedDialog;
