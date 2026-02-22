@@ -1,59 +1,57 @@
 
 
-# Usuwanie metadanych z plikow wideo przed uploadem
+# Redesign strony odtwarzacza wideo -- styl Wistia
 
-## Problem
-Pliki wideo nagrane telefonem lub kamera zawieraja ukryte metadane: lokalizacja GPS, model urzadzenia, data/czas, nazwa uzytkownika, oprogramowanie. Ktos kto pobierze udostepniony filmik moze odczytac te dane i zidentyfikowac osobe ktora go nagrala.
+## Obecny stan
+Strona `/video/:id` to pelnoekranowy czarny odtwarzacz z malym headerem -- wyglada jak surowy player, nie jak profesjonalna strona do udostepniania wideo.
 
-## Rozwiazanie: Usuwanie metadanych po stronie przegladarki (client-side)
-
-Pliki MP4/MOV skladaja sie z "atomow" (blokow danych). Metadane sa w atomach `udta` (user data -- GPS, urzadzenie) i `meta` (metadata) wewnatrz glownego atomu `moov`. Mozna je usunac bez re-enkodowania wideo -- jakos pozostaje 100% nienaruszona, zmienia sie tylko kontener.
-
-Podejscie client-side jest najlepsze bo:
-- Zero dodatkowego transferu (nie trzeba sciagac pliku z serwera i ponownie uploadowac)
-- Dzialanie jest natychmiastowe (parsowanie binarnych atomow jest szybkie)
-- Nie obciaza serwera
-- Dziala dla dowolnie duzych plikow
+## Docelowy wyglad (na wzor Wistia)
+Biala/jasna strona z normalnym layoutem:
+- **Gora**: przycisk "Wstecz" + breadcrumb (sciezka folderu)
+- **Tytul wideo**: duzy, wyrazny, pod breadcrumbem
+- **Odtwarzacz**: w srodku strony, z proporcjami 16:9, zaokraglone rogi, nie na calym ekranie
+- **Pod odtwarzaczem**: sekcja z informacjami -- rozmiar, data, liczba odtworzen
+- **Prawy panel (opcjonalnie na duzych ekranach)**: dodatkowe info
 
 ## Zmiany techniczne
 
-### 1. Nowy plik `src/lib/stripVideoMetadata.ts`
-Parser atomow MP4/MOV ktory:
-- Czyta plik jako ArrayBuffer
-- Przechodzi przez atomy pliku (ftyp, moov, mdat, itp.)
-- Wewnatrz atomu `moov` rekurencyjnie przechodzi przez sub-atomy
-- Usuwa atomy `udta` (user data -- zawiera GPS, info o urzadzeniu) i `meta` (dodatkowe metadane)
-- Sklada nowy plik z pozostalych atomow
-- Zwraca oczyszczony Blob o tym samym typie MIME
-- Dla plikow nie-MP4 (np. AVI, MKV) -- zwraca oryginalny plik bez zmian (te formaty sa rzadko uzywane na telefonach)
+### Plik: `src/pages/VideoPlayer.tsx`
+Kompletny redesign layoutu:
 
-### 2. Zmiana w `src/hooks/useVideoStore.ts`
-- Import funkcji `stripVideoMetadata`
-- W `uploadVideo`, przed wywolaniem `uploadFileXHR`, przepuszczenie pliku przez stripper:
-  ```
-  const cleanFile = await stripVideoMetadata(file);
-  await uploadFileXHR(cleanFile, storagePath, onProgress);
-  ```
-- Miniaturka generowana z oryginalnego pliku (nie z oczyszczonego) -- to nie ma znaczenia bo miniaturka to tylko obraz
+- **Tlo**: `bg-background` (jasne) zamiast `bg-black`
+- **Kontener**: max-width (np. `max-w-5xl mx-auto`) z paddingiem, nie fullscreen
+- **Breadcrumb**: gora strony -- "Dashboard > Nazwa folderu > Nazwa wideo" z linkami
+- **Tytul**: duzy heading (`text-2xl font-bold`) pod breadcrumbem
+- **Odtwarzacz**: `aspect-video` (16:9), `rounded-lg overflow-hidden`, cien (`shadow-lg`), tlo czarne tylko wewnatrz odtwarzacza
+- **Sekcja info pod odtwaczem**: karty/statystyki w wierszu:
+  - Rozmiar pliku
+  - Data dodania
+  - Liczba odtworzen
+- **Responsywnosc**: na mobile odtwarzacz na cala szerokosc, na desktopie wycentrowany z max-width
 
-### 3. Zmiana w `src/hooks/useUploadQueue.ts`
-- Dodanie nowego statusu `"cleaning"` wyswietlanego przed uploadem
-- Gdy plik jest czyszczony z metadanych, status zmienia sie na "cleaning"
+### Struktura layoutu:
+```text
++------------------------------------------+
+| <- Wstecz    Dashboard > Folder > Video  |
++------------------------------------------+
+| Tytul wideo                              |
+| tekst-xs: nazwa_pliku.mp4               |
++------------------------------------------+
+|                                          |
+|   +----------------------------------+   |
+|   |                                  |   |
+|   |        VIDEO PLAYER 16:9        |   |
+|   |                                  |   |
+|   +----------------------------------+   |
+|                                          |
++------------------------------------------+
+| Rozmiar     |  Data      | Odtworzenia  |
+| 178.0 MB    | 22.02.2026 | 2            |
++------------------------------------------+
+```
 
-### 4. Zmiana w `src/components/dashboard/UploadQueue.tsx`
-- UI dla statusu "cleaning": ikona tarczy/zamka + tekst "Usuwanie metadanych..."
-
-### Jakie metadane sa usuwane:
-- Lokalizacja GPS (szerokosc/dlugosc geograficzna)
-- Model urzadzenia (np. "iPhone 15 Pro")
-- Wersja oprogramowania
-- Data i czas nagrania (w metadanych -- w samym wideo czas pozostaje)
-- Nazwa uzytkownika/artysty
-- Komentarze i opisy
-- Informacje o oprogramowaniu do edycji
-
-### Czego NIE usuwamy (zeby wideo dzialalo):
-- Kodeki audio/video (trak atomy)
-- Informacje o rozdzielczosci i frame rate
-- Dane samego wideo i audio (mdat atom)
-
+### Szczegoly implementacji:
+- Uzycie istniejacych komponentow UI: `Card`, `Button`, `Separator`
+- Breadcrumb z `react-router-dom` Link
+- Statystyki w gridzie 3-kolumnowym
+- Zachowanie logiki pobierania wideo i incrementowania plays bez zmian
