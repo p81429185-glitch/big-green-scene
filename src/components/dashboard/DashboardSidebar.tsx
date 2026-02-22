@@ -15,12 +15,13 @@ import {
   Trash2,
   ChevronRight,
   ChevronDown,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import type { FolderItem } from "@/hooks/useVideoStore";
 
-type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit";
+export type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit" | "users";
 
 const navItems = [
   { icon: Home, label: "Home" },
@@ -41,6 +42,7 @@ interface Props {
   onViewChange: (view: ViewType) => void;
   onDropVideo?: (videoId: string, folderId: string | null) => void;
   onDropFolder?: (folderId: string, targetParentId: string | null) => void;
+  isAdmin?: boolean;
 }
 
 const viewMap: Record<string, ViewType> = {
@@ -57,7 +59,7 @@ const handleDragData = (e: React.DragEvent) => {
   return { videoId, folderId };
 };
 
-const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo, onDropFolder }: Props) => {
+const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo, onDropFolder, isAdmin }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -110,6 +112,20 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
             </button>
           );
         })}
+
+        {isAdmin && (
+          <button
+            onClick={() => onViewChange("users")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeView === "users"
+                ? "bg-primary/10 text-primary border-l-2 border-primary"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Użytkownicy
+          </button>
+        )}
 
         {folders.length > 0 && (
           <div className="pt-4">
