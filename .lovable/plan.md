@@ -1,65 +1,84 @@
 
 
-## Brand Kit -- globalna konfiguracja brandingu dla embedow
+## Zapisywanie brandingu do bazy + rozdzialy i napisy przy filmiku
 
-Zamiast konfigurowania kolorow i logo osobno dla kazdego embeda, powstanie osobna strona "Brand Kit" w dashboardzie, gdzie ustawienia brandingu konfiguruje sie raz. Kazdy nowo generowany embed automatycznie uzywa tych ustawien.
+Dwie funkcjonalnosci w jednym podejsciu:
 
-### Nowe elementy:
+### Czesc 1: Zapis ustawien brandingu do bazy danych
 
-**1. Tabela w bazie danych: `brand_settings`**
+Obecnie `useBrandSettings` zapisuje dane do `localStorage`. Tabela `brand_settings` juz istnieje w bazie, ale aplikacja uzywa wlasnego systemu auth (nie Supabase Auth), wiec polityki RLS oparte na `auth.uid()` nie zadziaja.
+
+**Rozwiazanie**: Zmiana polityk RLS na `true` (jak w tabelach `videos` i `folders`) oraz zapis/odczyt z tabeli `brand_settings` bez `user_id`.
+
+**Zmiany w plikach:**
+
+- **Migracja SQL**: Zmiana RLS na permisywne (USING true / WITH CHECK true) -- analogicznie do tabel `videos` i `folders`. Ustawienie `user_id` jako nullable z domyslna wartoscia.
+- **`src/hooks/useBrandSettings.ts`**: Przepisanie hooka zeby:
+  - Przy ladowaniu pobierac ustawienia z tabeli `brand_settings` (pierwszy wiersz)
+  - Przy zmianie dowolnego ustawienia automatycznie zapisywac do bazy (upsert)
+  - Fallback na localStorage gdy brak polaczenia z baza
+  - Upload logo do Supabase Storage jak dotychczas
+
+### Czesc 2: Rozdzialy (chapters) i napisy (subtitles) przy filmiku
+
+Nowa tabela `video_chapters` i rozszerzenie strony VideoPlayer o zakladke "Rozdzialy" oraz mozliwosc generowania napisow z transkrypcji.
+
+**Nowa tabela: `video_chapters`**
 - `id` (uuid, PK)
-- `user_id` (uuid, NOT NULL -- referencja do auth.users)
-- `logo_url` (text, nullable)
-- `player_color` (text, default `#16a34a`)
-- `icon_color` (text, default `#ffffff`)
-- `progress_color` (text, default `#ffffff`)
-- `play_bg_color` (text, default `#16a34a80`)
-- `font_family` (text, default `Inter`)
-- `created_at` / `updated_at` (timestamptz)
-- RLS: uzytkownik widzi/edytuje tylko swoje ustawienia
+- `video_id` (uuid, FK do videos)
+- `title` (text) -- nazwa rozdzialu
+- `timestamp_seconds` (integer) -- czas w sekundach
+- `created_at` (timestamptz)
+- RLS: USING true / WITH CHECK true (jak inne tabele)
 
-**2. Nowy widok "Brand Kit" w sidebarze dashboardu**
-- Nowa pozycja w `navItems` z ikona `Palette` i labelem "Brand Kit"
-- Nowy `activeView` = `"brandkit"`
+**Zmiany w `src/pages/VideoPlayer.tsx`:**
+- Nowa zakladka "Rozdzialy" w panelu bocznym obok "Szczegoly", "Transkrypcja", "Komentarze"
+- W zakladce Rozdzialy:
+  - Lista rozdzialow (posortowana po timestamp_seconds)
+  - Kazdy rozdzial pokazuje czas (MM:SS) i tytul
+  - Klikniecie na rozdzial przesuwa video do tego momentu
+  - Formularz dodawania nowego rozdzialu: pole na tytul + pole na czas (MM:SS)
+  - Przycisk usuwania rozdzialu
+- W zakladce Transkrypcja:
+  - Nowy przycisk "Generuj napisy (SRT)" -- konwertuje transkrypcje na format SRT
+  - Przycisk "Pobierz SRT" -- pobiera plik .srt
+  - Napisy generowane przez edge function ktora dzieli transkrypcje na segmenty z timestampami
 
-**3. Nowy komponent `src/components/dashboard/BrandKitView.tsx`**
-- Wyglad wzorowany na screenshotach uzytkownika:
-  - Sekcja **Logos**: drop zone z przyciskiem "Upload" do przeslania logo (upload do Supabase Storage, bucket `brand-assets`). Podglad aktualnego logo z mozliwoscia edycji/usuniecia.
-  - Sekcja **Colors**: karty kolorow (Player Color, Icon Color, Progress Color, Play BG Color). Kazda karta pokazuje podglad koloru z wartoscia hex + przyciski edycji/usuniecia. Przycisk "+ Add new" z color pickerem.
-  - Sekcja **Fonts**: karta z aktualna czcionka (domyslnie Inter) + pole "Add a font" z wyborem z predefiniowanej listy (Inter, Roboto, Open Sans, Lato, Montserrat, Poppins).
-  - Podglad playera na zywo z aktualnymi ustawieniami brandingu
+**Nowa edge function: `generate-subtitles`**
+- Przyjmuje `videoId` jako parametr
+- Pobiera transkrypcje z bazy
+- Wysyla do Lovable AI (gemini-2.5-flash) z promptem: "Podziel te transkrypcje na napisy w formacie SRT z timestampami co 3-5 sekund"
+- Zwraca tekst SRT
+- Zapisuje SRT do kolumny `subtitles_srt` w tabeli `videos`
 
-**4. Hook `src/hooks/useBrandSettings.ts`**
-- Pobiera ustawienia brandingu z tabeli `brand_settings` dla zalogowanego uzytkownika
-- Funkcje: `loadBrandSettings`, `saveBrandSettings`, `uploadLogo`
-- Uzywa `@tanstack/react-query` do cache'owania
-
-**5. Zmiany w `EmbedDialog.tsx`**
-- Przy otwieraniu dialogu automatycznie laduje ustawienia z `useBrandSettings`
-- Stany `brandColor`, `brandIconColor`, `brandProgressColor`, `brandLogoUrl`, `brandPlayBgColor` inicjalizowane z zapisanych ustawien
-- Sekcja Branding w dialogu nadal istnieje, ale domyslnie wypelniona globalnymi wartosciami (mozna nadpisac per-embed)
-
-**6. Zmiany w `Dashboard.tsx`**
-- Nowy typ `"brandkit"` w `activeView`
-- Import i renderowanie `BrandKitView` gdy `activeView === "brandkit"`
-
-**7. Zmiany w `DashboardSidebar.tsx`**
-- Nowa pozycja nawigacji: `{ icon: Palette, label: "Brand Kit" }`
-- Mapowanie w `viewMap`: `"Brand Kit": "brandkit"`
-
-### Przepyw uzytkownika:
-
-1. Uzytkownik klika "Brand Kit" w sidebarze
-2. Widzi strone z sekcjami Logos, Colors, Fonts
-3. Uploaduje logo, wybiera kolory, wybiera czcionke
-4. Klika "Zapisz" -- dane zapisuja sie do bazy
-5. Przy generowaniu embeda dla dowolnego filmu -- kolory i logo sa automatycznie pobierane z zapisanych ustawien
-6. W dialogu embed mozna nadal recznie zmienic kolory per-embed
+**Nowa kolumna w tabeli `videos`:**
+- `subtitles_srt` (text, nullable) -- przechowuje wygenerowane napisy w formacie SRT
 
 ### Szczegoly techniczne:
 
-- Upload logo: Supabase Storage bucket `brand-assets` z polityka RLS (uzytkownik uploaduje tylko do swojego folderu `{user_id}/`)
-- Czcionka w embedzie: dodana jako Google Fonts `<link>` w generowanym kodzie embed
-- Tabela `brand_settings` ma constraint UNIQUE na `user_id` -- jeden zestaw ustawien per uzytkownik
-- Komponent BrandKitView uzywa kart z obramowaniem dashed (jak na screenshocie) dla pustych slotow
+**Migracja SQL:**
+1. Zmiana RLS na `brand_settings` (USING true)
+2. Utworzenie tabeli `video_chapters`
+3. Dodanie kolumny `subtitles_srt` do `videos`
+
+**Nowe pliki:**
+- `supabase/functions/generate-subtitles/index.ts` -- edge function generujaca SRT z transkrypcji
+
+**Zmodyfikowane pliki:**
+- `src/hooks/useBrandSettings.ts` -- zapis/odczyt z bazy zamiast localStorage
+- `src/pages/VideoPlayer.tsx` -- zakladka Rozdzialy + przycisk generowania napisow SRT
+- `supabase/config.toml` -- konfiguracja nowej edge function (verify_jwt = false)
+
+**Przepyw uzytkownika (rozdzialy):**
+1. Otwiera filmik w VideoPlayer
+2. Klika zakladke "Rozdzialy"
+3. Wpisuje tytul rozdzialu i czas (np. "Wprowadzenie" o 0:00)
+4. Dodaje kolejne rozdzialy
+5. Klika na rozdzial -- video przeskakuje do tego momentu
+
+**Przepyw uzytkownika (napisy):**
+1. Otwiera filmik, przechodzi do zakladki "Transkrypcja"
+2. Jesli transkrypcja istnieje, widzi przycisk "Generuj napisy SRT"
+3. Klika -- AI generuje plik SRT z timestampami
+4. Moze pobrac plik .srt lub skopiowac tekst
 
