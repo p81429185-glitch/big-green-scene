@@ -61,8 +61,29 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const [showControls, setShowControls] = useState(true);
     const [currentSubtitle, setCurrentSubtitle] = useState("");
     const [started, setStarted] = useState(false);
+    const [videoWidth, setVideoWidth] = useState(0);
+    const [videoHeight, setVideoHeight] = useState(0);
+    const [selectedQuality, setSelectedQuality] = useState<string>("Auto");
+    const [showQualityMenu, setShowQualityMenu] = useState(false);
 
     const segments = subtitlesSrt ? parseSrt(subtitlesSrt) : [];
+
+    const qualityOptions = (() => {
+      const opts: { label: string; width: number; height: number }[] = [];
+      if (!videoWidth) return [{ label: "Auto", width: 0, height: 0 }];
+      if (videoWidth >= 3840) opts.push({ label: "4K", width: 3840, height: 2160 });
+      if (videoWidth >= 1920) opts.push({ label: "1080p", width: 1920, height: 1080 });
+      if (videoWidth >= 1280) opts.push({ label: "720p", width: 1280, height: 720 });
+      if (videoWidth >= 854) opts.push({ label: "480p", width: 854, height: 480 });
+      if (opts.length === 0) opts.push({ label: `${videoHeight}p`, width: videoWidth, height: videoHeight });
+      return opts;
+    })();
+
+    const selectedOption = qualityOptions.find((o) => o.label === selectedQuality);
+    const videoStyle: React.CSSProperties =
+      selectedOption && selectedOption.width > 0
+        ? { maxWidth: selectedOption.width, maxHeight: selectedOption.height, margin: "0 auto" }
+        : {};
 
     useImperativeHandle(ref, () => ({
       seek: (seconds: number) => {
@@ -125,7 +146,16 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       if (!v) return;
       const onPlay = () => setPlaying(true);
       const onPause = () => setPlaying(false);
-      const onLoaded = () => setDuration(v.duration);
+      const onLoaded = () => {
+        setDuration(v.duration);
+        setVideoWidth(v.videoWidth);
+        setVideoHeight(v.videoHeight);
+        // Default to native resolution label
+        if (v.videoWidth >= 3840) setSelectedQuality("4K");
+        else if (v.videoWidth >= 1920) setSelectedQuality("1080p");
+        else if (v.videoWidth >= 1280) setSelectedQuality("720p");
+        else setSelectedQuality("480p");
+      };
       v.addEventListener("play", onPlay);
       v.addEventListener("pause", onPause);
       v.addEventListener("loadedmetadata", onLoaded);
@@ -154,6 +184,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           muted={muted}
           onTimeUpdate={handleTimeUpdate}
           className="w-full h-full"
+          style={videoStyle}
         />
 
         {/* Logo */}
@@ -252,6 +283,36 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
               {!muted && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
             </svg>
           </button>
+
+          {/* Quality */}
+          <div className="relative shrink-0">
+            <button onClick={() => setShowQualityMenu((v) => !v)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+            {showQualityMenu && (
+              <div
+                className="absolute bottom-8 right-0 rounded-md shadow-lg py-1 min-w-[100px] z-50"
+                style={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.2)" }}
+              >
+                {qualityOptions.map((opt) => (
+                  <button
+                    key={opt.label}
+                    className="block w-full text-left px-3 py-1.5 text-xs hover:bg-white/20"
+                    style={{ color: opt.label === selectedQuality ? settings.progress_color : "#fff" }}
+                    onClick={() => {
+                      setSelectedQuality(opt.label);
+                      setShowQualityMenu(false);
+                    }}
+                  >
+                    {opt.label} {opt.label === selectedQuality ? "✓" : ""}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Fullscreen */}
           <button onClick={toggleFullscreen} className="shrink-0">
