@@ -10,34 +10,29 @@ import RecentBanner from "@/components/dashboard/RecentBanner";
 import TopPlayedTable from "@/components/dashboard/TopPlayedTable";
 import RecentlyShared from "@/components/dashboard/RecentlyShared";
 import UploadDialog from "@/components/dashboard/UploadDialog";
-
-const mockVideos = [
-  { id: 1, title: "Intro do projektu", created: "2026-02-18", plays: 142, engagement: 78 },
-  { id: 2, title: "Tutorial – edycja wideo", created: "2026-02-15", plays: 89, engagement: 64 },
-  { id: 3, title: "Spotkanie drużyny #12", created: "2026-02-10", plays: 34, engagement: 45 },
-  { id: 4, title: "Demo produktu v2", created: "2026-02-08", plays: 256, engagement: 82 },
-  { id: 5, title: "Prezentacja kwartalna", created: "2026-02-01", plays: 67, engagement: 55 },
-  { id: 6, title: "Behind the scenes", created: "2026-01-28", plays: 198, engagement: 71 },
-];
-
-const mockShared = [
-  { id: 1, title: "Demo produktu v2", sharedAt: "2 godz. temu", views: 48, link: "bighosting.app/s/demo-v2" },
-  { id: 2, title: "Intro do projektu", sharedAt: "wczoraj", views: 22, link: "bighosting.app/s/intro" },
-  { id: 3, title: "Behind the scenes", sharedAt: "3 dni temu", views: 15, link: "bighosting.app/s/bts" },
-];
-
-const totalPlays = mockVideos.reduce((sum, v) => sum + v.plays, 0);
+import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
+import { useVideoStore } from "@/hooks/useVideoStore";
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [bannerVisible, setBannerVisible] = useState(true);
   const { isAuthenticated, userEmail } = useAuth();
   const navigate = useNavigate();
+  const { videos, folders, addVideo, deleteVideo, createFolder, deleteFolder } = useVideoStore();
 
   useEffect(() => {
     if (!isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, navigate]);
+
+  const filteredVideos = currentFolderId
+    ? videos.filter((v) => v.folderId === currentFolderId)
+    : videos;
+
+  const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
+  const lastVideo = videos.length > 0 ? videos[videos.length - 1] : null;
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -45,10 +40,16 @@ const Dashboard = () => {
         <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <DashboardSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <DashboardSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        folders={folders}
+        currentFolderId={currentFolderId}
+        onFolderSelect={setCurrentFolderId}
+        onDeleteFolder={deleteFolder}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-background sticky top-0 z-30">
           <div className="flex items-center gap-3 flex-1">
             <button onClick={() => setSidebarOpen(true)} className="md:hidden text-foreground">
@@ -64,14 +65,17 @@ const Dashboard = () => {
           </Avatar>
         </header>
 
-        {/* Content */}
         <main className="flex-1 p-4 md:p-6 space-y-6">
-          <ActionCards totalPlays={totalPlays} onUploadClick={() => setUploadOpen(true)} />
+          <ActionCards
+            totalPlays={totalPlays}
+            onUploadClick={() => setUploadOpen(true)}
+            onFolderClick={() => setFolderOpen(true)}
+          />
 
-          {bannerVisible && (
+          {bannerVisible && lastVideo && (
             <RecentBanner
-              title="Demo produktu v2"
-              lastEdited="2 godz. temu"
+              title={lastVideo.title}
+              lastEdited="przed chwilą"
               onResume={() => {}}
               onDismiss={() => setBannerVisible(false)}
             />
@@ -79,16 +83,27 @@ const Dashboard = () => {
 
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <TopPlayedTable videos={mockVideos} />
+              <TopPlayedTable videos={filteredVideos} onDelete={deleteVideo} />
             </div>
             <div>
-              <RecentlyShared items={mockShared} />
+              <RecentlyShared items={[]} />
             </div>
           </div>
         </main>
       </div>
 
-      <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
+      <UploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        currentFolderId={currentFolderId}
+        onUpload={addVideo}
+      />
+      <CreateFolderDialog
+        open={folderOpen}
+        onOpenChange={setFolderOpen}
+        existingNames={folders.map((f) => f.name)}
+        onCreate={createFolder}
+      />
     </div>
   );
 };
