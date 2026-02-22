@@ -31,7 +31,7 @@ interface Props {
   onDeleteFolder: (id: string) => void;
 }
 
-const DashboardSidebar = ({ open, onClose, folders, currentFolderId, onFolderSelect, onDeleteFolder }: Props) => {
+const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
