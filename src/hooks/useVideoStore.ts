@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { stripVideoMetadata } from "@/lib/stripVideoMetadata";
+import * as tus from "tus-js-client";
 
 export interface VideoItem {
   id: string;
@@ -97,35 +98,49 @@ export function useVideoStore() {
     });
   };
 
-  const uploadFileXHR = async (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
+  const uploadFileTus = async (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
     const url = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-    // Use user's session token instead of anon key
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || anonKey;
 
     return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          onProgress?.(Math.round((e.loaded / e.total) * 95));
-        }
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
+      const upload = new tus.Upload(file, {
+        endpoint: `${url}/storage/v1/upload/resumable`,
+        retryDelays: [0, 1000, 3000, 5000],
+        chunkSize: 6 * 1024 * 1024, // 6MB
+        headers: {
+          authorization: `Bearer ${token}`,
+          apikey: anonKey,
+        },
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        metadata: {
+          bucketName: "videos",
+          objectName: storagePath,
+          contentType: file.type || "application/octet-stream",
+          cacheControl: "3600",
+        },
+        onError: (error) => {
+          reject(new Error(`Upload failed: ${error.message}`));
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const pct = Math.round((bytesUploaded / bytesTotal) * 95);
+          onProgress?.(pct);
+        },
+        onSuccess: () => {
           resolve();
-        } else {
-          reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+        },
+      });
+
+      // Check for previous uploads to resume
+      upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
         }
-      };
-      xhr.onerror = () => reject(new Error("Network error during upload"));
-      xhr.open("POST", `${url}/storage/v1/object/videos/${storagePath}`);
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-      xhr.setRequestHeader("apikey", anonKey);
-      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-      xhr.setRequestHeader("x-upsert", "false");
-      xhr.send(file);
+        upload.start();
+      });
     });
   };
 
@@ -142,7 +157,7 @@ export function useVideoStore() {
 
       // Upload cleaned file with real progress
       onProgress?.(0);
-      await uploadFileXHR(cleanFile, storagePath, onProgress);
+      await uploadFileTus(cleanFile, storagePath, onProgress);
 
       // Insert metadata (90-95%)
       onProgress?.(91);
