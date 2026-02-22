@@ -41,10 +41,10 @@ serve(async (req) => {
       });
     }
 
-    // Check file size (~200MB limit)
-    if (video.size > 200 * 1024 * 1024) {
+    // Check file size (~5GB limit)
+    if (video.size > 5 * 1024 * 1024 * 1024) {
       return new Response(
-        JSON.stringify({ error: "Plik jest za duży (max 200MB)" }),
+        JSON.stringify({ error: "Plik jest za duży (max 5GB)" }),
         {
           status: 413,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
