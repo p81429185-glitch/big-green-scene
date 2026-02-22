@@ -1,55 +1,75 @@
 
+## Zmiana jakosci wideo + Import rozdzialow z tekstu
 
-## Upload napisow SRT + Player z brandingiem
+### 1. Wybor jakosci wideo w playerze
 
-### Problem 1: Brak mozliwosci wklejenia/uploadu pliku SRT
-Obecnie napisy SRT mozna tylko generowac z AI. Uzytkownik chce moc wkleic wlasny plik SRT i wyswietlac napisy na playerze.
+Dodanie przycisku zmiany jakosci (np. ikona zebatki obok mute/fullscreen) w `BrandedVideoPlayer.tsx`.
 
-### Problem 2: Player nie uzywa ustawien brandingu
-Na stronie VideoPlayer jest zwykly natywny `<video controls>` bez zadnego brandingu (logo, kolory). Player powinien wygladac jak ten z podgladu w EmbedDialog -- z wlasnym paskiem kontrolnym, logo, kolorami z Brand Kit.
+**Jak to dziala:**
+- Po zaladowaniu video, player odczytuje natywna rozdzielczosc (np. 1920x1080 = 1080p, 3840x2160 = 4K)
+- Na podstawie rozdzielczosci generuje liste dostepnych jakosci (np. film 4K oferuje: 4K, 1080p, 720p; film 1080p oferuje: 1080p, 720p)
+- Przycisk otwiera maly popup z lista jakosci
+- Zmiana jakosci = zmiana rozmiaru renderowania video przez CSS (skalowanie w dol) -- przeglądarka nie moze transkodowac wideo po stronie klienta, wiec to bedzie wizualne zmniejszenie rozdzielczosci wyswietlania
+- **Uwaga**: prawdziwa zmiana jakosci (transkodowanie do roznych rozdzielczosci) wymaga backendu do przetwarzania wideo (np. FFmpeg). Na ten moment implementujemy selector ktory pokazuje natywna rozdzielczosc i pozwala na ograniczenie renderowania.
 
----
+**Zmiany w plikach:**
+- **`src/components/video/BrandedVideoPlayer.tsx`**:
+  - Nowy state: `videoWidth`, `videoHeight`, `selectedQuality`, `showQualityMenu`
+  - W `loadedmetadata` odczyt `videoWidth` i `videoHeight`
+  - Funkcja generujaca dostepne jakosci (filtruje te nizsze niz natywna)
+  - Popup z lista jakosci (nad paskiem kontrolnym)
+  - Przycisk zebatki w control bar
+  - Zastosowanie `style={{ maxWidth, maxHeight }}` na `<video>` w zaleznosci od wybranej jakosci
 
-### Zmiany:
+### 2. Import rozdzialow z wklejonego tekstu
 
-**1. `src/components/video/TranscriptionTab.tsx` -- upload/wklejanie SRT**
-- Dodanie przycisku "Wgraj plik SRT" z inputem `<input type="file" accept=".srt">`
-- Po wybraniu pliku: odczyt zawartosc, zapisanie do bazy (`subtitles_srt` w tabeli `videos`) i aktualizacja stanu
-- Mozliwosc wklejenia tekstu SRT recznie (textarea z przyciskiem "Zapisz napisy")
-- Jesli napisy juz sa wgrane, pokazanie ich w ScrollArea z opcja edycji/podmiany
+Dodanie textarea w `ChaptersTab.tsx` do wklejania rozdzialow w formacie:
+```
+00:00 Wstep
+03:20 Pierwsze informacje
+15:45 Podsumowanie
+```
 
-**2. `src/components/video/BrandedVideoPlayer.tsx` -- nowy komponent customowego playera**
-- Wlasny player z kontrolkami (play/pause, pasek postepu, czas, glosnosc, fullscreen)
-- Pobiera ustawienia brandingu z `useBrandSettings` (kolory paska, ikon, postepu, logo)
-- Wyswietla logo w prawym gornym rogu
-- Pasek kontrolny na dole z kolorami z Brand Kit
-- Duzy przycisk play na srodku z kolorem brandu
-- Obsluga napisow SRT: parsowanie SRT do tablicy segmentow z timestampami i wyswietlanie aktualnego napisu na video (overlay)
-- Props: `src`, `poster`, `subtitlesSrt`, `onTimeUpdate`, `ref` do seekowania
+**Parser rozpoznaje formaty:**
+- `00:00 Tytul` (MM:SS spacja tytul)
+- `0:00 Tytul` (M:SS spacja tytul)
+- `00:00 - Tytul` (z myslnikiem)
 
-**3. `src/pages/VideoPlayer.tsx` -- zamiana natywnego video na BrandedVideoPlayer**
-- Import `BrandedVideoPlayer` zamiast natywnego `<video>`
-- Przekazanie `subtitlesSrt` do playera
-- Zachowanie ref do seekowania z rozdzialow
+**Zmiany w plikach:**
+- **`src/components/video/ChaptersTab.tsx`**:
+  - Nowy state: `bulkMode`, `bulkText`
+  - Przycisk "Wklej rozdzialy" przelacza na textarea
+  - Funkcja `parseBulkChapters(text)` -- parsuje kazda linie na `{ timestamp_seconds, title }`
+  - Przycisk "Importuj" -- wstawia wszystkie sparsowane rozdzialy do bazy jednym `insert`
+  - Podglad ile rozdzialow zostanie zaimportowanych
+  - Parser obsluguje format `MM:SS Tytul` oraz `HH:MM:SS Tytul`
 
-### Szczegoly techniczne:
+### Szczegoly techniczne
 
-**Parser SRT** (wbudowany w BrandedVideoPlayer):
-- Parsuje format SRT na tablice `{ id, startTime, endTime, text }`
-- W `timeupdate` event sprawdza ktory napis powinien byc widoczny
-- Wyswietla napis jako overlay na dole video
+**Quality selector w BrandedVideoPlayer:**
+```
+Dostepne jakosci na podstawie rozdzielczosci:
+- 3840px+ szerokosc = 4K, 1080p, 720p, 480p
+- 1920px+ = 1080p, 720p, 480p
+- 1280px+ = 720p, 480p
+- ponizej = 480p (lub "Auto")
+```
 
-**Custom kontrolki playera:**
-- Hover na playerze pokazuje pasek kontrolny (jak w EmbedDialog preview)
-- Click na video = play/pause
-- Pasek postepu klikalny do seekowania
-- Przycisk fullscreen
-- Przycisk mute/unmute
-- Czas aktualny / calkowity
+**Parser rozdzialow:**
+```
+Input:
+"00:00 Wstep
+03:20 Pierwsze informacje
+15:45 Podsumowanie"
 
-**Upload SRT w TranscriptionTab:**
-- `<input type="file" accept=".srt">` ukryty za przyciskiem
-- FileReader do odczytu zawartosci
-- Zapis do bazy: `supabase.from("videos").update({ subtitles_srt: srtContent }).eq("id", videoId)`
-- Textarea do recznej edycji/wklejenia SRT
+Output:
+[
+  { timestamp_seconds: 0, title: "Wstep" },
+  { timestamp_seconds: 200, title: "Pierwsze informacje" },
+  { timestamp_seconds: 945, title: "Podsumowanie" }
+]
+```
 
+**Modyfikowane pliki:**
+- `src/components/video/BrandedVideoPlayer.tsx` -- quality selector
+- `src/components/video/ChaptersTab.tsx` -- bulk import rozdzialow
