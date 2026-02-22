@@ -22,6 +22,7 @@ const Dashboard = () => {
   const [folderOpen, setFolderOpen] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [bannerVisible, setBannerVisible] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics">("home");
@@ -36,13 +37,23 @@ const Dashboard = () => {
     if (!isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, navigate]);
 
-  const filteredVideos = activeView === "favorites"
-    ? videos.filter((v) => v.is_favorite)
-    : activeView === "library" || activeView === "analytics"
-      ? videos
-      : currentFolderId
-        ? videos.filter((v) => v.folder_id === currentFolderId)
-        : videos;
+  const filteredVideos = useMemo(() => {
+    let result = activeView === "favorites"
+      ? videos.filter((v) => v.is_favorite)
+      : activeView === "library" || activeView === "analytics"
+        ? videos
+        : currentFolderId
+          ? videos.filter((v) => v.folder_id === currentFolderId)
+          : videos;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (v) => v.title.toLowerCase().includes(q) || v.file_name.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [videos, activeView, currentFolderId, searchQuery]);
 
   const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
   const lastVideo = videos.length > 0 ? videos[0] : null;
@@ -98,7 +109,7 @@ const Dashboard = () => {
             </button>
             <div className="relative max-w-sm w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Szukaj filmów..." className="pl-9 h-9" />
+              <Input placeholder="Szukaj filmów..." className="pl-9 h-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
           </div>
           <Avatar className="h-8 w-8">
