@@ -17,6 +17,7 @@ import {
   FileText,
   Loader2,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -239,6 +240,16 @@ const VideoPlayer = () => {
                 poster={video.thumbnail_url || undefined}
               />
             </div>
+            <Button
+              variant="outline"
+              className="w-full mt-3"
+              asChild
+            >
+              <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4 mr-1.5" />
+                Otwórz w NotebookLM
+              </a>
+            </Button>
           </div>
 
           {/* Right: sidebar panel */}
