@@ -58,6 +58,8 @@ const EmbedDialog = ({
   const [injectSeo, setInjectSeo] = useState(true);
   const [showCode, setShowCode] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [allowedDomain, setAllowedDomain] = useState("");
+  const [domainRestricted, setDomainRestricted] = useState(false);
 
   const [popoverMode, setPopoverMode] = useState("thumbnail");
   const [popoverWidth, setPopoverWidth] = useState("150");
@@ -66,32 +68,54 @@ const EmbedDialog = ({
   const [popoverText, setPopoverText] = useState("Kliknij, aby obejrzeć wideo");
 
   const embedCode = useMemo(() => {
+    let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
       if (sizeMode === "responsive") {
-        return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+        rawCode = `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
   <iframe src="${videoUrl}" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allowfullscreen></iframe>
 </div>`;
+      } else {
+        rawCode = `<iframe src="${videoUrl}" width="${embedWidth}" height="${embedHeight}" frameborder="0" allowfullscreen></iframe>`;
       }
-      return `<iframe src="${videoUrl}" width="${embedWidth}" height="${embedHeight}" frameborder="0" allowfullscreen></iframe>`;
-    }
-    if (embedTab === "popover") {
+    } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
         const thumb = thumbnailUrl || videoUrl;
         if (popoverResponsive) {
-          return `<a href="${videoUrl}" target="_blank" rel="noopener">
+          rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">
   <img src="${thumb}" style="width:100%;max-width:${popoverWidth}px;" alt="Wideo" />
 </a>`;
-        }
-        return `<a href="${videoUrl}" target="_blank" rel="noopener">
+        } else {
+          rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">
   <img src="${thumb}" width="${popoverWidth}" height="${popoverHeight}" alt="Wideo" />
 </a>`;
+        }
+      } else {
+        rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">${popoverText}</a>`;
       }
-      return `<a href="${videoUrl}" target="_blank" rel="noopener">${popoverText}</a>`;
     }
-    return "";
+
+    if (domainRestricted && allowedDomain.trim() && rawCode) {
+      const uid = "embed-" + Math.random().toString(36).slice(2, 10);
+      const escaped = rawCode.replace(/'/g, "\\'").replace(/\n/g, "\\n");
+      return `<div id="${uid}">
+  <script>
+    (function(){
+      var allowed = "${allowedDomain.trim()}";
+      if (window.location.hostname === allowed || window.location.hostname.endsWith("." + allowed)) {
+        document.getElementById("${uid}").innerHTML = '${escaped}';
+      } else {
+        document.getElementById("${uid}").innerHTML = '<p style="color:#666;font-size:14px;">Ten film nie jest dostępny na tej stronie.</p>';
+      }
+    })();
+  </script>
+</div>`;
+    }
+
+    return rawCode;
   }, [
     embedTab, sizeMode, embedWidth, embedHeight, videoUrl, thumbnailUrl,
     popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
+    domainRestricted, allowedDomain,
   ]);
 
   const handleCopy = () => {
@@ -239,6 +263,30 @@ const EmbedDialog = ({
               Dodaj metadane SEO
             </Label>
           </div>
+        </div>
+        <Separator />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="domain-restrict"
+              checked={domainRestricted}
+              onCheckedChange={(v) => setDomainRestricted(v === true)}
+            />
+            <Label htmlFor="domain-restrict" className="text-sm cursor-pointer">
+              Ogranicz do domeny
+            </Label>
+          </div>
+          {domainRestricted && (
+            <Input
+              value={allowedDomain}
+              onChange={(e) => setAllowedDomain(e.target.value)}
+              placeholder="np. mojastrona.pl"
+              className="h-8 text-sm"
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Embed będzie działał tylko na podanej domenie (i jej subdomenach).
+          </p>
         </div>
       </CollapsibleContent>
     </Collapsible>
