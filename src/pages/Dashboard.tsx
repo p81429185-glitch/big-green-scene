@@ -10,8 +10,10 @@ import RecentBanner from "@/components/dashboard/RecentBanner";
 import TopPlayedTable from "@/components/dashboard/TopPlayedTable";
 import RecentlyShared from "@/components/dashboard/RecentlyShared";
 import UploadDialog from "@/components/dashboard/UploadDialog";
+import UploadQueue from "@/components/dashboard/UploadQueue";
 import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
 import { useVideoStore } from "@/hooks/useVideoStore";
+import { useUploadQueue } from "@/hooks/useUploadQueue";
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,6 +25,11 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { videos, folders, loading, uploadVideo, deleteVideo, createFolder, deleteFolder } = useVideoStore();
 
+  const {
+    queue, minimized, setMinimized, addFiles, clearQueue,
+    isActive, hasItems, doneCount, totalCount, overallProgress,
+  } = useUploadQueue({ uploadVideo });
+
   useEffect(() => {
     if (!isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, navigate]);
@@ -33,6 +40,10 @@ const Dashboard = () => {
 
   const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
   const lastVideo = videos.length > 0 ? videos[0] : null;
+
+  const handleFilesSelected = (files: File[]) => {
+    addFiles(files, currentFolderId);
+  };
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -102,8 +113,7 @@ const Dashboard = () => {
       <UploadDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        currentFolderId={currentFolderId}
-        onUpload={uploadVideo}
+        onFilesSelected={handleFilesSelected}
       />
       <CreateFolderDialog
         open={folderOpen}
@@ -111,6 +121,19 @@ const Dashboard = () => {
         existingNames={folders.map((f) => f.name)}
         onCreate={createFolder}
       />
+
+      {hasItems && (
+        <UploadQueue
+          queue={queue}
+          minimized={minimized}
+          onToggleMinimize={() => setMinimized((m) => !m)}
+          onClose={clearQueue}
+          isActive={isActive}
+          doneCount={doneCount}
+          totalCount={totalCount}
+          overallProgress={overallProgress}
+        />
+      )}
     </div>
   );
 };
