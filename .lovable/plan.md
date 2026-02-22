@@ -1,41 +1,55 @@
 
-
-# Przebudowa dashboardu w stylu Wistia
+# Prawdziwy upload plikow i foldery
 
 ## Co zrobimy
-Przebudujemy dashboard, aby wyglądał jak na screenshocie z Wistia -- z paskiem akcji na gorze, banerem ostatnio oglądanego filmu, tabelą najczęściej odtwarzanych filmów i panelem bocznym z ostatnio udostępnionymi.
+1. Usuwamy kafelki "Nagraj" i "Kanal" z paska akcji -- zostaja: statystyki, Upload, Folder
+2. Upload bedzie dzialal naprawde -- pliki zapisywane w localStorage (jako metadata, bez duzych plikow na razie) i wyswietlane w tabeli
+3. Foldery -- mozliwosc tworzenia folderow i przechodzenia do nich
+4. Tabela filmow bedzie pokazywac prawdziwe uploadowane pliki zamiast mock data
+5. Usuwamy "Kanaly" z sidebara
 
-## Zmiany w `src/pages/Dashboard.tsx`
+## Zmiany
 
-### 1. Sidebar -- nowa nawigacja (jak na screenie)
-- Home, Ulubione, Biblioteka, Kanaly, Analityka (zamiast obecnych Filmy/Foldery/Ustawienia)
-- Ikony dopasowane do Wistia
+### 1. Nowy stan aplikacji -- `src/hooks/useVideoStore.ts`
+- Custom hook z localStorage do przechowywania listy plikow i folderow
+- Struktura: `{ videos: [{id, title, fileName, size, createdAt, folderId, plays}], folders: [{id, name, createdAt}] }`
+- Funkcje: `addVideo()`, `deleteVideo()`, `createFolder()`, `deleteFolder()`
 
-### 2. Top bar
-- Pole wyszukiwania po lewej
-- Avatar uzytkownika po prawej
+### 2. `src/components/dashboard/ActionCards.tsx`
+- Usuwamy "Nagraj" i "Kanal"
+- Zostaja: statystyki odtworzen, Upload (highlight), Folder
+- Dodajemy callback `onFolderClick`
+- Grid zmienia sie na 3 kolumny
 
-### 3. Pasek akcji (action cards)
-- Rzad kafelkow: "X odtworzen w tym tygodniu", **"Upload"**, "Nagraj", "Folder", "Kanal"
-- Kafelek "Upload" bedzie glownym sposobem dodawania filmow (na razie UI-only, bez prawdziwego uploadu)
+### 3. `src/components/dashboard/UploadDialog.tsx` -- prawdziwy upload
+- Drag & drop + klikniecie do wyboru pliku
+- Akceptacja plikow wideo (MP4, MOV, AVI, MKV, WEBM)
+- Po wybraniu pliku: odczytanie nazwy, rozmiaru, zapisanie metadata do localStorage
+- Progress bar (symulowany, bo nie ma backendu)
+- Po ukonczeniu: zamkniecie dialogu, odswiezenie listy
 
-### 4. Baner "Ostatnio ogladany film"
-- Zielone tlo (zamiast niebieskiego z Wistia)
-- Tytul filmu, data ostatniej edycji
-- Przycisk "Wznow" i X do zamkniecia
+### 4. `src/components/dashboard/CreateFolderDialog.tsx` -- nowy plik
+- Prosty dialog z polem na nazwe folderu
+- Walidacja (nie pusty, unikalna nazwa)
+- Zapisanie do localStorage
 
-### 5. Sekcja glowna -- dwie kolumny
-- **Lewa (szersza)**: "Najczesciej odtwarzane filmy" -- tabela z miniatura, tytulem, data, liczba odtworzen, engagement %
-- **Prawa (wezsza)**: "Ostatnio udostepnione" -- karta z miniatura, linkiem, statystykami
+### 5. `src/components/dashboard/TopPlayedTable.tsx`
+- Wyswietla prawdziwe pliki z localStorage zamiast mock data
+- Dodajemy przycisk usuwania przy kazdym filmie
+- Pokazuje rozmiar pliku, date dodania
+- Gdy brak filmow: placeholder "Brak filmow -- dodaj pierwszy!"
 
-### 6. Mock data
-- Zaktualizowane dane filmow z polami: title, created, plays, engagement
-- Dane do panelu "ostatnio udostepnione"
+### 6. `src/components/dashboard/DashboardSidebar.tsx`
+- Usuwamy "Kanaly" z nawigacji
+- Dodajemy sekcje "Foldery" ponizej nawigacji z lista folderow
 
-## Pliki do zmiany
-- `src/pages/Dashboard.tsx` -- pelna przebudowa layoutu
+### 7. `src/pages/Dashboard.tsx`
+- Usuwamy mock data
+- Integracja z `useVideoStore`
+- Dodajemy stan `createFolderOpen` i `currentFolder`
+- Przekazujemy prawdziwe dane do komponentow
 
-## Uwagi
-- Upload bedzie na razie tylko UI (przycisk + dialog placeholder)
-- Kolorystyka zostaje zielona, ale layout 1:1 jak Wistia
-- Responsywnosc zachowana (na mobile kolumny sie zwijaja)
+## Uwagi techniczne
+- Pliki wideo nie beda faktycznie przechowywane (za duze na localStorage) -- zapisujemy tylko metadata (nazwa, rozmiar, typ, data)
+- Do prawdziwego przechowywania plikow potrzebny bedzie Supabase Storage -- to nastepny krok
+- Foldery dzialaja jako filtr na liscie filmow
