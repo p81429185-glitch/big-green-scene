@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, BookOpen } from "lucide-react";
+import { Plus, Trash2, BookOpen, ClipboardPaste } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -34,11 +35,34 @@ function parseTime(value: string): number | null {
   return m * 60 + s;
 }
 
+function parseBulkChapters(text: string): { timestamp_seconds: number; title: string }[] {
+  const lines = text.split("\n").filter((l) => l.trim());
+  const results: { timestamp_seconds: number; title: string }[] = [];
+  for (const line of lines) {
+    // Match HH:MM:SS or MM:SS or M:SS at the start
+    const match = line.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*[-–—]?\s*(.+)/);
+    if (!match) continue;
+    let seconds: number;
+    if (match[3] !== undefined) {
+      // HH:MM:SS
+      seconds = parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]);
+    } else {
+      // MM:SS
+      seconds = parseInt(match[1]) * 60 + parseInt(match[2]);
+    }
+    const title = match[4].trim();
+    if (title) results.push({ timestamp_seconds: seconds, title });
+  }
+  return results;
+}
+
 const ChaptersTab = ({ videoId, onSeek }: ChaptersTabProps) => {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
   const [loading, setLoading] = useState(true);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState("");
 
   const loadChapters = async () => {
     const { data } = await supabase
@@ -91,28 +115,73 @@ const ChaptersTab = ({ videoId, onSeek }: ChaptersTabProps) => {
     return <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Ładowanie...</div>;
   }
 
+  const parsedBulk = bulkMode ? parseBulkChapters(bulkText) : [];
+
+  const importBulk = async () => {
+    if (parsedBulk.length === 0) {
+      toast.error("Nie znaleziono rozdziałów do importu");
+      return;
+    }
+    const rows = parsedBulk.map((ch) => ({ video_id: videoId, ...ch }));
+    const { error } = await supabase.from("video_chapters").insert(rows);
+    if (error) {
+      toast.error("Błąd importu rozdziałów");
+      return;
+    }
+    setBulkText("");
+    setBulkMode(false);
+    loadChapters();
+    toast.success(`Zaimportowano ${parsedBulk.length} rozdziałów`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Add chapter form */}
       <div className="space-y-2">
-        <Label>Nowy rozdział</Label>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Tytuł"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="flex-1"
-          />
-          <Input
-            placeholder="0:00"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="w-20"
-          />
-          <Button size="icon" onClick={addChapter}>
-            <Plus className="h-4 w-4" />
+        <div className="flex items-center justify-between">
+          <Label>Nowy rozdział</Label>
+          <Button variant="ghost" size="sm" onClick={() => setBulkMode((v) => !v)}>
+            <ClipboardPaste className="h-4 w-4 mr-1" />
+            {bulkMode ? "Pojedynczo" : "Wklej rozdziały"}
           </Button>
         </div>
+
+        {bulkMode ? (
+          <div className="space-y-2">
+            <Textarea
+              placeholder={"00:00 Wstęp\n03:20 Pierwsze informacje\n15:45 Podsumowanie"}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              rows={6}
+            />
+            {bulkText && (
+              <p className="text-xs text-muted-foreground">
+                Znaleziono {parsedBulk.length} rozdziałów
+              </p>
+            )}
+            <Button onClick={importBulk} disabled={parsedBulk.length === 0} className="w-full">
+              Importuj {parsedBulk.length > 0 ? `(${parsedBulk.length})` : ""}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              placeholder="Tytuł"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="flex-1"
+            />
+            <Input
+              placeholder="0:00"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-20"
+            />
+            <Button size="icon" onClick={addChapter}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <Separator />
