@@ -1,60 +1,40 @@
 
 
-## 1. Analityka -- widok statystyk
+## Drag and Drop -- przenoszenie filmow miedzy folderami
 
-Przycisk "Analityka" w sidebarze bedzie przelaczal na widok z podsumowaniem statystyk filmow.
+### Jak to bedzie dzialac
+- Kazdy wiersz w tabeli filmow bedzie mozna "chwycic" i przeciagnac (HTML5 Drag & Drop API, bez dodatkowej biblioteki)
+- Foldery w sidebarze beda celami upuszczania (drop targets) -- podswietla sie folder gdy przeciagamy nad nim film
+- Upuszczenie filmu na folder przeniesie go do tego folderu w bazie danych
+- Upuszczenie na "Home" (lub specjalny obszar "Wszystkie") przeniesie film do glownego poziomu (folder_id = null)
 
-### Co bedzie widoczne w widoku Analityka:
-- Laczna liczba filmow
-- Laczna liczba odtworzen
-- Laczny rozmiar plikow
-- Liczba ulubionych
-- Wykres slupkowy top 5 najczesciej odtwarzanych filmow (z uzyciem recharts, juz zainstalowany)
-- Tabela ze statystykami per folder (ile filmow, ile odtworzen)
-
-### Zmiany:
-- Nowy komponent `src/components/dashboard/AnalyticsView.tsx` -- renderuje karty ze statystykami i wykres
-- `src/pages/Dashboard.tsx` -- rozszerzenie `activeView` o wartosc `"analytics"`, warunkowe renderowanie `AnalyticsView` zamiast tabeli filmow
-- `src/components/dashboard/DashboardSidebar.tsx` -- klikniecie "Analityka" ustawia widok na `"analytics"`
-
----
-
-## 2. Foldery zagniezdzone (folder w folderze)
-
-Obecnie foldery sa plaskie (bez hierarchii). Dodanie kolumny `parent_id` do tabeli `folders` umozliwi tworzenie podfolderow.
-
-### Zmiana w bazie danych:
-```sql
-ALTER TABLE folders ADD COLUMN parent_id uuid REFERENCES folders(id) ON DELETE CASCADE DEFAULT NULL;
-```
-
-### Zmiany w kodzie:
+### Zmiany w plikach
 
 **`src/hooks/useVideoStore.ts`**
-- Dodanie `parent_id: string | null` do interfejsu `FolderItem`
-- Zmiana `createFolder(name, parentId?)` -- przekazywanie `parent_id` przy insercie
+- Nowa funkcja `moveVideo(videoId: string, targetFolderId: string | null)` -- aktualizuje `folder_id` w bazie i stanie lokalnym
+
+**`src/components/dashboard/TopPlayedTable.tsx`**
+- Dodanie atrybutow `draggable`, `onDragStart` do kazdego wiersza `TableRow`
+- W `onDragStart` ustawiamy `dataTransfer` z `videoId`
+- Wizualne oznaczenie przeciaganego elementu (opacity)
 
 **`src/components/dashboard/DashboardSidebar.tsx`**
-- Renderowanie folderow jako drzewa (foldery z `parent_id = null` na gorze, ich dzieci zagniezdzone pod nimi)
-- Ikona strzalki do rozwijania/zwijania podfolderow (Collapsible)
-- Klikniecie w folder ustawia `currentFolderId` i pokazuje filmy z tego folderu
-
-**`src/components/dashboard/CreateFolderDialog.tsx`**
-- Nowy opcjonalny props `parentFolderId` -- tworzenie podfolderu
-- Wyswietlanie informacji "Tworzysz podfolder w: [nazwa]"
+- Dodanie nowego propsa `onDropVideo: (videoId: string, folderId: string | null) => void`
+- Kazdy element folderu (`FolderTreeItem`) oraz przycisk "Home" otrzymuja handlery `onDragOver` i `onDrop`
+- Podswietlenie folderu podczas przeciagania nad nim (zmiana tla)
+- Obsluga upuszczenia -- wywolanie `onDropVideo(videoId, folderId)`
 
 **`src/pages/Dashboard.tsx`**
-- Przycisk "Nowy podfolder" dostepny gdy jestesmy wewnatrz folderu (currentFolderId nie jest null)
-- Breadcrumb nawigacja pokazujaca sciezke folderow (np. "Home > Tutoriale > React")
-
-**`src/components/dashboard/ActionCards.tsx`**
-- Gdy uzytkownik jest w folderze, przycisk "Folder" tworzy podfolder w aktualnym folderze
+- Nowa funkcja `handleMoveVideo` wywolujaca `moveVideo` z `useVideoStore`
+- Przekazanie `onDropVideo` do `DashboardSidebar`
 
 ### Szczegoly techniczne
 
-**Drzewo folderow w sidebarze** -- foldery beda grupowane rekurencyjnie. Kazdy folder z dzieci bedzie mial przycisk rozwijania (ChevronRight/ChevronDown). Uzyty zostanie komponent Collapsible z Radix UI (juz zainstalowany).
+Uzycie natywnego HTML5 Drag & Drop API:
+- `onDragStart`: `e.dataTransfer.setData("text/plain", videoId)`
+- `onDragOver`: `e.preventDefault()` (zeby umozliwic drop)
+- `onDrop`: `e.dataTransfer.getData("text/plain")` -> wywolanie `moveVideo`
+- Stan `dragOver` w folderach do podswietlenia celu
 
-**Breadcrumb** -- nad tabela filmow pojawi sie sciezka nawigacji z klikalnych elementow, np. "Wszystkie > Marketing > Kampania Q1". Klikniecie w element przenosi do tego folderu.
-
-**Filtrowanie filmow** -- widok "home" z wybranym folderem pokaze tylko filmy przypisane bezposrednio do tego folderu (nie rekurencyjnie z podfolderow).
+Nie wymaga zadnych dodatkowych bibliotek -- natywne API przegladarki wystarczy.
 
