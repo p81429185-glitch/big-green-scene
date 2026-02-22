@@ -26,14 +26,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import EmbedDialog from "@/components/dashboard/EmbedDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -119,9 +113,6 @@ const VideoPlayer = () => {
     toast.success("Link skopiowany do schowka");
   };
 
-  const embedCode = videoUrl
-    ? `<iframe src="${videoUrl}" width="640" height="360" frameborder="0" allowfullscreen></iframe>`
-    : "";
 
   if (loading) {
     return (
@@ -278,27 +269,12 @@ const VideoPlayer = () => {
       </div>
 
       {/* Embed dialog */}
-      <Dialog open={embedOpen} onOpenChange={setEmbedOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Kod osadzania</DialogTitle>
-            <DialogDescription>
-              Skopiuj poniższy kod i wklej go na swojej stronie.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="bg-muted rounded-md p-3">
-            <code className="text-xs break-all select-all">{embedCode}</code>
-          </div>
-          <Button
-            onClick={() => {
-              navigator.clipboard.writeText(embedCode);
-              toast.success("Kod skopiowany do schowka");
-            }}
-          >
-            Kopiuj kod
-          </Button>
-        </DialogContent>
-      </Dialog>
+      <EmbedDialog
+        open={embedOpen}
+        onOpenChange={setEmbedOpen}
+        videoUrl={videoUrl}
+        thumbnailUrl={video.thumbnail_url}
+      />
     </div>
   );
 };
