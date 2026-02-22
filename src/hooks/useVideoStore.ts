@@ -49,13 +49,15 @@ export function useVideoStore() {
     return data.publicUrl;
   };
 
-  const generateThumbnail = async (videoUrl: string, videoId: string): Promise<string | null> => {
+  const generateThumbnail = async (file: File, videoId: string): Promise<string | null> => {
+    const objectUrl = URL.createObjectURL(file);
     return new Promise((resolve) => {
       const video = document.createElement("video");
-      video.crossOrigin = "anonymous";
       video.muted = true;
       video.preload = "metadata";
-      video.src = videoUrl;
+      video.src = objectUrl;
+
+      const cleanup = () => URL.revokeObjectURL(objectUrl);
 
       video.addEventListener("loadeddata", () => {
         video.currentTime = Math.min(1, video.duration / 2);
@@ -67,9 +69,10 @@ export function useVideoStore() {
           canvas.width = 320;
           canvas.height = 180;
           const ctx = canvas.getContext("2d");
-          if (!ctx) { resolve(null); return; }
+          if (!ctx) { cleanup(); resolve(null); return; }
           ctx.drawImage(video, 0, 0, 320, 180);
           canvas.toBlob(async (blob) => {
+            cleanup();
             if (!blob) { resolve(null); return; }
             const thumbPath = `${videoId}.jpg`;
             const { error } = await supabase.storage
@@ -81,12 +84,13 @@ export function useVideoStore() {
             resolve(url);
           }, "image/jpeg", 0.7);
         } catch {
+          cleanup();
           resolve(null);
         }
       });
 
-      video.addEventListener("error", () => resolve(null));
-      setTimeout(() => resolve(null), 10000);
+      video.addEventListener("error", () => { cleanup(); resolve(null); });
+      setTimeout(() => { cleanup(); resolve(null); }, 10000);
     });
   };
 
@@ -145,17 +149,19 @@ export function useVideoStore() {
         .single();
 
       if (insertError) throw insertError;
-      onProgress?.(95);
-
-      // Generate thumbnail (95-100%)
-      const videoUrl = getPublicUrl("videos", storagePath);
-      const thumbUrl = await generateThumbnail(videoUrl, inserted.id);
       onProgress?.(100);
 
       const videoItem: VideoItem = {
         ...inserted,
-        thumbnail_url: thumbUrl ?? inserted.thumbnail_url,
+        thumbnail_url: null,
       } as VideoItem;
+
+      // Generate thumbnail in background (non-blocking)
+      generateThumbnail(file, inserted.id).then((thumbUrl) => {
+        if (thumbUrl) {
+          setVideos((prev) => prev.map((v) => v.id === inserted.id ? { ...v, thumbnail_url: thumbUrl } : v));
+        }
+      });
 
       setVideos((prev) => [videoItem, ...prev]);
       return videoItem;
