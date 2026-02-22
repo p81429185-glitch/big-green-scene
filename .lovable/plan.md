@@ -1,57 +1,66 @@
 
 
-# Redesign strony odtwarzacza wideo -- styl Wistia
+# Redesign strony wideo -- 1:1 jak Wistia
 
-## Obecny stan
-Strona `/video/:id` to pelnoekranowy czarny odtwarzacz z malym headerem -- wyglada jak surowy player, nie jak profesjonalna strona do udostepniania wideo.
+## Co brakuje vs screenshot Wistia
 
-## Docelowy wyglad (na wzor Wistia)
-Biala/jasna strona z normalnym layoutem:
-- **Gora**: przycisk "Wstecz" + breadcrumb (sciezka folderu)
-- **Tytul wideo**: duzy, wyrazny, pod breadcrumbem
-- **Odtwarzacz**: w srodku strony, z proporcjami 16:9, zaokraglone rogi, nie na calym ekranie
-- **Pod odtwarzaczem**: sekcja z informacjami -- rozmiar, data, liczba odtworzen
-- **Prawy panel (opcjonalnie na duzych ekranach)**: dodatkowe info
+Obecny layout ma tylko: breadcrumb, tytul, player, 3 karty statystyk. Na screenshocie Wistia widac duzo wiecej elementow:
 
-## Zmiany techniczne
+1. **Header z przyciskami** -- po prawej stronie tytulu: przycisk "..." (menu), "Embed" (niebieski), "Share" (niebieski z dropdown)
+2. **Rzad zakladek akcji** pod tytulem: Edit, Customize, Analytics, Social clips (z ikonami)
+3. **Dwukolumnowy layout** -- player po lewej, panel boczny po prawej
+4. **Prawy panel boczny** -- zakladki "Transcript" / "Comments", informacje o rozdziale, jezyk, tekst transkrypcji
+5. **Brak kart statystyk** pod playerem -- te informacje ida do prawego panelu
 
-### Plik: `src/pages/VideoPlayer.tsx`
-Kompletny redesign layoutu:
+## Plan zmian
 
-- **Tlo**: `bg-background` (jasne) zamiast `bg-black`
-- **Kontener**: max-width (np. `max-w-5xl mx-auto`) z paddingiem, nie fullscreen
-- **Breadcrumb**: gora strony -- "Dashboard > Nazwa folderu > Nazwa wideo" z linkami
-- **Tytul**: duzy heading (`text-2xl font-bold`) pod breadcrumbem
-- **Odtwarzacz**: `aspect-video` (16:9), `rounded-lg overflow-hidden`, cien (`shadow-lg`), tlo czarne tylko wewnatrz odtwarzacza
-- **Sekcja info pod odtwaczem**: karty/statystyki w wierszu:
-  - Rozmiar pliku
-  - Data dodania
-  - Liczba odtworzen
-- **Responsywnosc**: na mobile odtwarzacz na cala szerokosc, na desktopie wycentrowany z max-width
+### Plik: `src/pages/VideoPlayer.tsx` -- kompletny redesign
 
-### Struktura layoutu:
+#### Struktura:
+
 ```text
-+------------------------------------------+
-| <- Wstecz    Dashboard > Folder > Video  |
-+------------------------------------------+
-| Tytul wideo                              |
-| tekst-xs: nazwa_pliku.mp4               |
-+------------------------------------------+
-|                                          |
-|   +----------------------------------+   |
-|   |                                  |   |
-|   |        VIDEO PLAYER 16:9        |   |
-|   |                                  |   |
-|   +----------------------------------+   |
-|                                          |
-+------------------------------------------+
-| Rozmiar     |  Data      | Odtworzenia  |
-| 178.0 MB    | 22.02.2026 | 2            |
-+------------------------------------------+
++----------------------------------------------------------+
+| Content Library  >  Folder Name                          |
++----------------------------------------------------------+
+| export dzien 2                    [...] [Embed] [Share]  |
++----------------------------------------------------------+
+| Edit | Customize | Analytics | Social clips             |
++----------------------------------------------------------+
+|                              |                           |
+|                              |  Szczegoly / Komentarze   |
+|      VIDEO PLAYER 16:9      |                           |
+|                              |  Rozmiar: 178 MB          |
+|                              |  Data: 22.02.2026         |
+|                              |  Odtworzenia: 15          |
+|                              |  Plik: nazwa.mp4          |
++------------------------------+---------------------------+
 ```
 
-### Szczegoly implementacji:
-- Uzycie istniejacych komponentow UI: `Card`, `Button`, `Separator`
-- Breadcrumb z `react-router-dom` Link
-- Statystyki w gridzie 3-kolumnowym
-- Zachowanie logiki pobierania wideo i incrementowania plays bez zmian
+#### Szczegoly:
+
+1. **Breadcrumb** -- bez przycisku "Wstecz" (strzalki), sam breadcrumb z ikonami folderow jak na Wistia
+2. **Header row** -- tytul po lewej, po prawej 3 przyciski:
+   - `MoreHorizontal` (menu) -- na razie bez akcji
+   - "Udostepnij" -- kopiuje link do wideo do schowka (toast z potwierdzeniem)
+   - "Osadz" -- pokazuje dialog z kodem embed `<iframe>`
+3. **Zakladki akcji** -- rzad ikon z etykietami (Edit, Dostosuj, Analityka, Klipy) -- na razie jako placeholder, klikniecie pokazuje toast "Wkrotce dostepne"
+4. **Layout 2-kolumnowy** (`grid grid-cols-1 lg:grid-cols-3 gap-6`):
+   - Lewa kolumna (`lg:col-span-2`): player wideo
+   - Prawa kolumna (`lg:col-span-1`): panel z zakladkami
+5. **Prawy panel** -- Card z zakladkami (Tabs):
+   - "Szczegoly" -- rozmiar, data, odtworzenia, nazwa pliku
+   - "Komentarze" -- placeholder "Brak komentarzy"
+6. **Karty statystyk** usuwane -- info przeniesione do prawego panelu
+7. **Responsywnosc** -- na mobile prawy panel pod playerem (single column)
+
+### Nowe importy:
+- `MoreHorizontal`, `Code`, `Share2`, `Scissors`, `Settings`, `BarChart3`, `Pencil` z lucide-react
+- `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` z komponentow UI
+- `toast` z sonner (do kopiowania linku)
+
+### Logika bez zmian:
+- Pobieranie wideo z bazy
+- Pobieranie folderu
+- Generowanie URL
+- Inkrementacja plays
+
