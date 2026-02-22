@@ -29,9 +29,17 @@ interface Props {
   currentFolderId: string | null;
   onFolderSelect: (id: string | null) => void;
   onDeleteFolder: (id: string) => void;
+  activeView: "home" | "favorites" | "library";
+  onViewChange: (view: "home" | "favorites" | "library") => void;
 }
 
-const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder }: Props) => {
+const viewMap: Record<string, "home" | "favorites" | "library"> = {
+  Home: "home",
+  Ulubione: "favorites",
+  Biblioteka: "library",
+};
+
+const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -54,20 +62,24 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
-          <button
-            key={item.label}
-            onClick={() => { if (item.label === "Home") onFolderSelect(null); }}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              item.label === "Home" && currentFolderId === null
-                ? "bg-sidebar-accent text-sidebar-primary"
-                : "text-sidebar-foreground hover:bg-sidebar-accent/60"
-            }`}
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const view = viewMap[item.label];
+          const isActive = view ? activeView === view && currentFolderId === null : false;
+          return (
+            <button
+              key={item.label}
+              onClick={() => { if (view) onViewChange(view); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-primary"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+              }`}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          );
+        })}
 
         {folders.length > 0 && (
           <div className="pt-4">
