@@ -5,27 +5,33 @@ import {
   Home,
   Heart,
   Library,
-  Radio,
   BarChart3,
   Play,
   LogOut,
   X,
+  Folder,
+  Trash2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { FolderItem } from "@/hooks/useVideoStore";
 
 const navItems = [
-  { icon: Home, label: "Home", active: true },
-  { icon: Heart, label: "Ulubione", active: false },
-  { icon: Library, label: "Biblioteka", active: false },
-  { icon: Radio, label: "Kanały", active: false },
-  { icon: BarChart3, label: "Analityka", active: false },
+  { icon: Home, label: "Home" },
+  { icon: Heart, label: "Ulubione" },
+  { icon: Library, label: "Biblioteka" },
+  { icon: BarChart3, label: "Analityka" },
 ];
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  folders: FolderItem[];
+  currentFolderId: string | null;
+  onFolderSelect: (id: string | null) => void;
+  onDeleteFolder: (id: string) => void;
 }
 
-const DashboardSidebar = ({ open, onClose }: Props) => {
+const DashboardSidebar = ({ open, onClose, folders, currentFolderId, onFolderSelect, onDeleteFolder }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -47,12 +53,13 @@ const DashboardSidebar = ({ open, onClose }: Props) => {
         </button>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <button
             key={item.label}
+            onClick={() => { if (item.label === "Home") onFolderSelect(null); }}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              item.active
+              item.label === "Home" && currentFolderId === null
                 ? "bg-sidebar-accent text-sidebar-primary"
                 : "text-sidebar-foreground hover:bg-sidebar-accent/60"
             }`}
@@ -61,6 +68,34 @@ const DashboardSidebar = ({ open, onClose }: Props) => {
             {item.label}
           </button>
         ))}
+
+        {folders.length > 0 && (
+          <div className="pt-4">
+            <p className="px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Foldery</p>
+            {folders.map((folder) => (
+              <div
+                key={folder.id}
+                className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
+                  currentFolderId === folder.id
+                    ? "bg-sidebar-accent text-sidebar-primary font-medium"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+                }`}
+                onClick={() => onFolderSelect(folder.id)}
+              >
+                <Folder className="h-4 w-4 shrink-0" />
+                <span className="truncate flex-1">{folder.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </nav>
 
       <div className="p-4 border-t space-y-3">

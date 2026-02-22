@@ -1,21 +1,20 @@
-import { Upload, Video, FolderPlus, Radio, TrendingUp } from "lucide-react";
+import { Upload, FolderPlus, TrendingUp } from "lucide-react";
 
 interface Props {
   totalPlays: number;
   onUploadClick: () => void;
+  onFolderClick: () => void;
 }
 
-const ActionCards = ({ totalPlays, onUploadClick }: Props) => {
+const ActionCards = ({ totalPlays, onUploadClick, onFolderClick }: Props) => {
   const actions = [
     { icon: TrendingUp, label: `${totalPlays} odtworzeń`, sublabel: "w tym tygodniu", onClick: undefined, highlight: false },
     { icon: Upload, label: "Upload", sublabel: "Dodaj film", onClick: onUploadClick, highlight: true },
-    { icon: Video, label: "Nagraj", sublabel: "Nowe nagranie", onClick: undefined, highlight: false },
-    { icon: FolderPlus, label: "Folder", sublabel: "Nowy folder", onClick: undefined, highlight: false },
-    { icon: Radio, label: "Kanał", sublabel: "Nowy kanał", onClick: undefined, highlight: false },
+    { icon: FolderPlus, label: "Folder", sublabel: "Nowy folder", onClick: onFolderClick, highlight: false },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-3 gap-3">
       {actions.map((action) => (
         <button
           key={action.label}
