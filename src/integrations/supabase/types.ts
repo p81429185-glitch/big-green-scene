@@ -43,6 +43,7 @@ export type Database = {
           storage_path: string
           thumbnail_url: string | null
           title: string
+          transcription: string | null
         }
         Insert: {
           created_at?: string
@@ -54,6 +55,7 @@ export type Database = {
           storage_path: string
           thumbnail_url?: string | null
           title: string
+          transcription?: string | null
         }
         Update: {
           created_at?: string
@@ -65,6 +67,7 @@ export type Database = {
           storage_path?: string
           thumbnail_url?: string | null
           title?: string
+          transcription?: string | null
         }
         Relationships: [
           {
