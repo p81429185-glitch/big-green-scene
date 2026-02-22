@@ -1,84 +1,41 @@
 
 
-# Kolejka uploadow z minimalizacja
+# Naprawa: upload pokazuje 100% ale wideo nie pojawia sie
 
-## Opis
-Zamiana obecnego dialogu uploadu na system kolejki w prawym dolnym rogu ekranu. Uzytkownik wybiera pliki (do 20 na raz), dialog sie zamyka, a w rogu pojawia sie miniaturowy panel z kolejka -- mozna go zminimalizowac/rozwinac. Pliki uploaduja sie po kolei, kazdy z wlasnym progress barem.
+## Diagnoza problemu
 
-## Architektura
+Problem jest w XHR uploadzie. Przegladarka wysyla bajty szybko (progress dochodzi do 90%), ale serwer jeszcze przetwarza plik -- `xhr.onload` nie odpalil sie. Pasek progressu wyglada na pelny (90% wizualnie wyglada jak 100%), ale upload jeszcze trwa na serwerze. Dlatego:
+- Pasek wyglada pelny
+- Status to nadal "uploading" (spinner sie kreci)
+- Wideo nie pojawia sie w tabeli
 
-### 1. Nowy komponent `UploadQueue.tsx`
-Staly komponent w prawym dolnym rogu (fixed, z-50), widoczny tylko gdy sa pliki w kolejce. Dwa stany:
-- **Rozwiniety**: lista plikow z progress barami, nazwy, rozmiary, statusy (czeka/uploading/done/error)
-- **Zminimalizowany**: maly pasek z ikona, liczba plikow i ogolny progress
+Dodatkowo: XHR uzywa **anon key** jako token autoryzacji zamiast tokenu zalogowanego uzytkownika. To moze powodowac problemy z uploadem do storage.
 
-Funkcje:
-- Przycisk minimalizuj/rozwin (ChevronDown/ChevronUp)
-- Przycisk X do zamkniecia po zakonczeniu wszystkich
-- Automatyczne przewijanie listy (ScrollArea)
-- Kazdy plik: nazwa (truncated), rozmiar, progress bar, status ikona
+## Zmiany
 
-### 2. Zmiana `UploadDialog.tsx`
-Dialog sluzy teraz TYLKO do wyboru plikow:
-- Input z `multiple` -- mozna wybrac wiele plikow
-- Drag & drop wielu plikow
-- Limit 20 plikow (walidacja)
-- Po wybraniu plikow: dialog sie zamyka, pliki trafiaja do kolejki
+### 1. `src/hooks/useVideoStore.ts` -- uzycie tokena uzytkownika + lepszy progress
 
-### 3. Logika kolejki w `useUploadQueue.ts` (nowy hook)
-- State: tablica `QueueItem[]` z `{id, file, folderId, progress, status, error}`
-- Pliki uploaduja sie **sekwencyjnie** (jeden po drugim) zeby nie przeciazac sieci
-- Kazdy plik uzywa `uploadVideo` z `useVideoStore`
-- Po ukonczeniu wszystkich -- kolejka zostaje widoczna az uzytkownik ja zamknie
-- Funkcje: `addFiles(files, folderId)`, `clearCompleted()`, `isActive`
+- **Pobranie tokena sesji** uzytkownika zamiast anon key dla Authorization header:
+  ```
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token || anonKey;
+  ```
+- **Zmiana progress na 0-95%** w XHR zamiast 0-90%, zeby pasek nie wygladal na pelny za wczesnie
+- **Dodanie statusu "Przetwarzanie..."** -- gdy progress osiagnie 95% (bajty wyslane), ale serwer jeszcze nie odpowiedzial
 
-### 4. Zmiany w `Dashboard.tsx`
-- Usunac state `uploadOpen` na rzecz nowego podejscia
-- Dodac `UploadQueue` jako staly komponent
-- Dialog dalej otwierany przyciskiem, ale zamyka sie po wybraniu plikow
+### 2. `src/hooks/useUploadQueue.ts` -- nowy status "processing"
 
-## Zmiany techniczne
+- Dodanie statusu `"processing"` do QueueItem -- gdy bajty sa wyslane ale serwer przetwarza
+- Aktualizacja statusu w odpowiednim momencie
 
-### Nowe pliki:
-- `src/hooks/useUploadQueue.ts` -- hook z logika kolejki
-- `src/components/dashboard/UploadQueue.tsx` -- UI kolejki w rogu
+### 3. `src/components/dashboard/UploadQueue.tsx` -- UI dla stanu przetwarzania
 
-### Modyfikowane pliki:
-- `src/components/dashboard/UploadDialog.tsx` -- uproszczenie do wyboru plikow, `multiple`, limit 20, callback `onFilesSelected(files: File[])`
-- `src/pages/Dashboard.tsx` -- integracja kolejki, przekazanie `uploadVideo` do hooka
+- Nowa ikona/tekst dla statusu "processing": "Przetwarzanie na serwerze..."
+- Animowany spinner dla tego stanu zeby uzytkownik widzial ze cos sie dzieje
+- Pasek progressu z animacja pulsowania gdy serwer przetwarza
 
-### Struktura QueueItem:
-```text
-QueueItem {
-  id: string
-  file: File
-  fileName: string
-  fileSize: number
-  folderId: string | null
-  progress: number        // 0-100
-  status: 'waiting' | 'uploading' | 'done' | 'error'
-  error?: string
-}
-```
+### Podsumowanie zmian w plikach:
+- `src/hooks/useVideoStore.ts` -- token uzytkownika, lepszy progress mapping
+- `src/hooks/useUploadQueue.ts` -- status "processing"
+- `src/components/dashboard/UploadQueue.tsx` -- UI dla przetwarzania
 
-### UI kolejki (rozwiniety):
-```text
-+----------------------------------+
-| Przesylanie (3/7)    [_] [X]    |
-+----------------------------------+
-| [v] video1.mp4    120MB   Done  |
-| [v] video2.mp4     45MB   Done  |
-| [>] video3.mp4    890MB   67%   |
-|     ====-------         progress |
-| [ ] video4.mp4    234MB  Czeka  |
-| [ ] video5.mp4    567MB  Czeka  |
-+----------------------------------+
-```
-
-### UI kolejki (zminimalizowany):
-```text
-+----------------------------------+
-| Przesylanie 3/7  67%   [^] [X]  |
-| ==========---------              |
-+----------------------------------+
-```
