@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Search, Menu, ChevronRight } from "lucide-react";
+import { Search, Menu, ChevronRight, Loader2 } from "lucide-react";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import ActionCards from "@/components/dashboard/ActionCards";
 import RecentBanner from "@/components/dashboard/RecentBanner";
@@ -14,6 +14,7 @@ import UploadQueue from "@/components/dashboard/UploadQueue";
 import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import BrandKitView from "@/components/dashboard/BrandKitView";
+import AdminUsersView from "@/components/dashboard/AdminUsersView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
 
@@ -24,10 +25,10 @@ const Dashboard = () => {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [bannerVisible, setBannerVisible] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading, isAdmin, userEmail } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit">("home");
-  const { videos, folders, loading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
+  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users">("home");
+  const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
     queue, minimized, setMinimized, addFiles, clearQueue,
@@ -35,8 +36,8 @@ const Dashboard = () => {
   } = useUploadQueue({ uploadVideo });
 
   useEffect(() => {
-    if (!isAuthenticated) navigate("/auth", { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (!authLoading && !isAuthenticated) navigate("/auth", { replace: true });
+  }, [isAuthenticated, authLoading, navigate]);
 
   const filteredVideos = useMemo(() => {
     let result = activeView === "favorites"
@@ -59,7 +60,6 @@ const Dashboard = () => {
   const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
   const lastVideo = videos.length > 0 ? videos[0] : null;
 
-  // Breadcrumb path for nested folders
   const breadcrumbPath = useMemo(() => {
     if (!currentFolderId || activeView !== "home") return [];
     const path: { id: string; name: string }[] = [];
@@ -83,6 +83,14 @@ const Dashboard = () => {
     createFolder(name, currentFolderId);
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex bg-background">
       {sidebarOpen && (
@@ -97,6 +105,7 @@ const Dashboard = () => {
         onFolderSelect={(id) => { setCurrentFolderId(id); setActiveView("home"); }}
         onDeleteFolder={deleteFolder}
         activeView={activeView}
+        isAdmin={isAdmin}
         onViewChange={(view) => { setActiveView(view); if (view !== "home") setCurrentFolderId(null); }}
         onDropVideo={(videoId, folderId) => moveVideo(videoId, folderId)}
         onDropFolder={(folderId, targetParentId) => moveFolder(folderId, targetParentId)}
@@ -114,7 +123,9 @@ const Dashboard = () => {
             </div>
           </div>
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs">MR</AvatarFallback>
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+              {userEmail ? userEmail.substring(0, 2).toUpperCase() : "?"}
+            </AvatarFallback>
           </Avatar>
         </header>
 
@@ -156,7 +167,7 @@ const Dashboard = () => {
             />
           )}
 
-          {loading ? (
+          {videosLoading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
               Ładowanie...
             </div>
@@ -164,6 +175,8 @@ const Dashboard = () => {
             <AnalyticsView videos={videos} folders={folders} />
           ) : activeView === "brandkit" ? (
             <BrandKitView />
+          ) : activeView === "users" && isAdmin ? (
+            <AdminUsersView />
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
