@@ -90,6 +90,33 @@ export function useVideoStore() {
     });
   };
 
+  const uploadFileXHR = (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress?.(Math.round((e.loaded / e.total) * 90));
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.open("POST", `${url}/storage/v1/object/videos/${storagePath}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${anonKey}`);
+      xhr.setRequestHeader("apikey", anonKey);
+      xhr.setRequestHeader("x-upsert", "false");
+      xhr.send(file);
+    });
+  };
+
   const uploadVideo = useCallback(
     async (
       file: File,
@@ -98,18 +125,13 @@ export function useVideoStore() {
     ) => {
       const storagePath = `${crypto.randomUUID()}_${file.name}`;
 
-      // Upload file
-      onProgress?.(10);
-      const { error: uploadError } = await supabase.storage
-        .from("videos")
-        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      // Upload file with real progress (0-90%)
+      onProgress?.(0);
+      await uploadFileXHR(file, storagePath, onProgress);
 
-      if (uploadError) throw uploadError;
-      onProgress?.(60);
-
+      // Insert metadata (90-95%)
+      onProgress?.(91);
       const title = file.name.replace(/\.[^/.]+$/, "");
-
-      // Insert metadata
       const { data: inserted, error: insertError } = await supabase
         .from("videos")
         .insert({
@@ -123,9 +145,9 @@ export function useVideoStore() {
         .single();
 
       if (insertError) throw insertError;
-      onProgress?.(80);
+      onProgress?.(95);
 
-      // Generate thumbnail in background
+      // Generate thumbnail (95-100%)
       const videoUrl = getPublicUrl("videos", storagePath);
       const thumbUrl = await generateThumbnail(videoUrl, inserted.id);
       onProgress?.(100);

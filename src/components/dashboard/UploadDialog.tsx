@@ -12,6 +12,18 @@ import { Progress } from "@/components/ui/progress";
 
 const ACCEPTED = ".mp4,.mov,.avi,.mkv,.webm";
 
+const formatSize = (bytes: number) => {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+};
+
+const getStageLabel = (pct: number) => {
+  if (pct < 90) return "Przesyłanie pliku...";
+  if (pct < 95) return "Zapisywanie metadanych...";
+  return "Generowanie miniaturki...";
+};
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,16 +37,22 @@ const UploadDialog = ({ open, onOpenChange, currentFolderId, onUpload }: Props) 
   const [progress, setProgress] = useState<number | null>(null);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [fileSize, setFileSize] = useState(0);
 
   const reset = () => {
     setProgress(null);
     setDone(false);
     setError(null);
+    setFileName("");
+    setFileSize(0);
   };
 
   const handleFile = useCallback(
     async (file: File) => {
       reset();
+      setFileName(file.name);
+      setFileSize(file.size);
       setProgress(0);
       try {
         await onUpload(file, currentFolderId, setProgress);
@@ -110,9 +128,15 @@ const UploadDialog = ({ open, onOpenChange, currentFolderId, onUpload }: Props) 
             ) : (
               <Upload className="h-12 w-12 text-primary animate-pulse" />
             )}
-            <Progress value={progress} className="h-2" />
+            <div className="w-full space-y-2">
+              <Progress value={progress} className="h-2 [&>div]:transition-transform [&>div]:duration-300 [&>div]:ease-out" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span className="truncate max-w-[200px]">{fileName}</span>
+                <span>{formatSize(fileSize)}</span>
+              </div>
+            </div>
             <p className="text-sm text-muted-foreground">
-              {done ? "Gotowe!" : `Przesyłanie... ${Math.round(progress)}%`}
+              {done ? "Gotowe!" : `${getStageLabel(progress ?? 0)} ${Math.round(progress ?? 0)}%`}
             </p>
           </div>
         )}
