@@ -19,20 +19,20 @@ const Dashboard = () => {
   const [folderOpen, setFolderOpen] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [bannerVisible, setBannerVisible] = useState(true);
-  const { isAuthenticated, userEmail } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const { videos, folders, addVideo, deleteVideo, createFolder, deleteFolder } = useVideoStore();
+  const { videos, folders, loading, uploadVideo, deleteVideo, createFolder, deleteFolder } = useVideoStore();
 
   useEffect(() => {
     if (!isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, navigate]);
 
   const filteredVideos = currentFolderId
-    ? videos.filter((v) => v.folderId === currentFolderId)
+    ? videos.filter((v) => v.folder_id === currentFolderId)
     : videos;
 
   const totalPlays = videos.reduce((sum, v) => sum + v.plays, 0);
-  const lastVideo = videos.length > 0 ? videos[videos.length - 1] : null;
+  const lastVideo = videos.length > 0 ? videos[0] : null;
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -75,20 +75,27 @@ const Dashboard = () => {
           {bannerVisible && lastVideo && (
             <RecentBanner
               title={lastVideo.title}
-              lastEdited="przed chwilą"
-              onResume={() => {}}
+              videoId={lastVideo.id}
+              thumbnailUrl={lastVideo.thumbnail_url}
+              lastEdited={new Date(lastVideo.created_at).toLocaleDateString("pl-PL")}
               onDismiss={() => setBannerVisible(false)}
             />
           )}
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <TopPlayedTable videos={filteredVideos} onDelete={deleteVideo} />
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              Ładowanie...
             </div>
-            <div>
-              <RecentlyShared items={[]} />
+          ) : (
+            <div className="grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <TopPlayedTable videos={filteredVideos} onDelete={deleteVideo} />
+              </div>
+              <div>
+                <RecentlyShared items={[]} />
+              </div>
             </div>
-          </div>
+          )}
         </main>
       </div>
 
@@ -96,7 +103,7 @@ const Dashboard = () => {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         currentFolderId={currentFolderId}
-        onUpload={addVideo}
+        onUpload={uploadVideo}
       />
       <CreateFolderDialog
         open={folderOpen}
