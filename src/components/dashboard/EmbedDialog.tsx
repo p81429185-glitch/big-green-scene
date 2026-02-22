@@ -57,7 +57,6 @@ const EmbedDialog = ({
   const [showCode, setShowCode] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  // Popover state
   const [popoverMode, setPopoverMode] = useState("thumbnail");
   const [popoverWidth, setPopoverWidth] = useState("150");
   const [popoverHeight, setPopoverHeight] = useState("84");
@@ -89,17 +88,8 @@ const EmbedDialog = ({
     }
     return "";
   }, [
-    embedTab,
-    sizeMode,
-    embedWidth,
-    embedHeight,
-    videoUrl,
-    thumbnailUrl,
-    popoverMode,
-    popoverWidth,
-    popoverHeight,
-    popoverResponsive,
-    popoverText,
+    embedTab, sizeMode, embedWidth, embedHeight, videoUrl, thumbnailUrl,
+    popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
   ]);
 
   const handleCopy = () => {
@@ -107,7 +97,7 @@ const EmbedDialog = ({
     toast.success("Kod skopiowany do schowka");
   };
 
-  const SizeOptions = () => (
+  const sizeOptionsJsx = (
     <div className="space-y-3">
       <Label className="text-sm font-medium">Rozmiar</Label>
       <RadioGroup value={sizeMode} onValueChange={setSizeMode} className="space-y-3">
@@ -155,7 +145,26 @@ const EmbedDialog = ({
     </div>
   );
 
-  const AdvancedOptions = () => (
+  const videoPreviewJsx = (
+    <div className="rounded-lg overflow-hidden bg-black aspect-video border border-border">
+      {thumbnailUrl ? (
+        <img
+          src={thumbnailUrl}
+          alt="Podgląd wideo"
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <video
+          src={videoUrl}
+          className="w-full h-full"
+          muted
+          playsInline
+        />
+      )}
+    </div>
+  );
+
+  const advancedOptionsJsx = (
     <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
       <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
         {advancedOpen ? (
@@ -233,26 +242,7 @@ const EmbedDialog = ({
     </Collapsible>
   );
 
-  const VideoPreview = () => (
-    <div className="rounded-lg overflow-hidden bg-black aspect-video border border-border">
-      {thumbnailUrl ? (
-        <img
-          src={thumbnailUrl}
-          alt="Podgląd wideo"
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <video
-          src={videoUrl}
-          className="w-full h-full"
-          muted
-          playsInline
-        />
-      )}
-    </div>
-  );
-
-  const PlaceholderTab = ({ label }: { label: string }) => (
+  const placeholderJsx = (label: string) => (
     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
       <Mail className="h-8 w-8" />
       <p className="text-sm font-medium">{label}</p>
@@ -263,7 +253,6 @@ const EmbedDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
-        {/* Header */}
         <div className="p-6 pb-4 space-y-3">
           <DialogHeader>
             <DialogTitle className="text-xl">Osadź media</DialogTitle>
@@ -277,7 +266,6 @@ const EmbedDialog = ({
           </div>
         </div>
 
-        {/* Tabs */}
         <Tabs
           value={embedTab}
           onValueChange={setEmbedTab}
@@ -324,7 +312,6 @@ const EmbedDialog = ({
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            {/* Inline tab */}
             <TabsContent value="inline" className="mt-0 space-y-4">
               {showCode ? (
                 <div className="bg-muted rounded-md p-3">
@@ -334,15 +321,14 @@ const EmbedDialog = ({
                 </div>
               ) : (
                 <>
-                  <VideoPreview />
-                  <SizeOptions />
+                  {videoPreviewJsx}
+                  {sizeOptionsJsx}
                   <Separator />
-                  <AdvancedOptions />
+                  {advancedOptionsJsx}
                 </>
               )}
             </TabsContent>
 
-            {/* Popover tab */}
             <TabsContent value="popover" className="mt-0 space-y-4">
               {showCode ? (
                 <div className="bg-muted rounded-md p-3">
@@ -414,7 +400,6 @@ const EmbedDialog = ({
               )}
             </TabsContent>
 
-            {/* LLM-Friendly tab */}
             <TabsContent value="llm" className="mt-0 space-y-4">
               {showCode ? (
                 <div className="bg-muted rounded-md p-3">
@@ -424,25 +409,22 @@ const EmbedDialog = ({
                 </div>
               ) : (
                 <>
-                  <VideoPreview />
-                  <SizeOptions />
+                  {videoPreviewJsx}
+                  {sizeOptionsJsx}
                 </>
               )}
             </TabsContent>
 
-            {/* Email tab */}
             <TabsContent value="email" className="mt-0">
-              <PlaceholderTab label="Osadzanie w emailach" />
+              {placeholderJsx("Osadzanie w emailach")}
             </TabsContent>
 
-            {/* Transcript tab */}
             <TabsContent value="transcript" className="mt-0">
-              <PlaceholderTab label="Osadzanie transkrypcji" />
+              {placeholderJsx("Osadzanie transkrypcji")}
             </TabsContent>
           </div>
         </Tabs>
 
-        {/* Footer */}
         <div className="border-t border-border px-6 py-3 flex items-center justify-between">
           <Button
             variant="ghost"
