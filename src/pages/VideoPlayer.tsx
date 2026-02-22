@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video/BrandedVideoPlayer";
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
@@ -54,7 +55,7 @@ const actionTabs = [
 const VideoPlayer = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<BrandedVideoPlayerHandle>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [folder, setFolder] = useState<Folder | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,10 +109,7 @@ const VideoPlayer = () => {
   };
 
   const handleSeek = (seconds: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = seconds;
-      videoRef.current.play();
-    }
+    playerRef.current?.seek(seconds);
   };
 
   if (loading) {
@@ -198,16 +196,13 @@ const VideoPlayer = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: video player */}
           <div className="lg:col-span-2">
-            <div className="rounded-lg overflow-hidden shadow-lg bg-black aspect-video">
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                controls
-                autoPlay
-                className="w-full h-full"
-                poster={video.thumbnail_url || undefined}
-              />
-            </div>
+            <BrandedVideoPlayer
+              ref={playerRef}
+              src={videoUrl}
+              poster={video.thumbnail_url || undefined}
+              subtitlesSrt={subtitlesSrt}
+              autoPlay
+            />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1.5" />
