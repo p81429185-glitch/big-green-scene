@@ -1,4 +1,5 @@
 import { Play, Trash2, FileVideo } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   Table,
   TableBody,
@@ -23,6 +24,8 @@ function formatSize(bytes: number) {
 }
 
 const TopPlayedTable = ({ videos, onDelete }: Props) => {
+  const navigate = useNavigate();
+
   if (videos.length === 0) {
     return (
       <div className="rounded-xl border bg-card flex flex-col items-center justify-center py-16 gap-4">
@@ -40,37 +43,53 @@ const TopPlayedTable = ({ videos, onDelete }: Props) => {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12" />
+            <TableHead className="w-16" />
             <TableHead>Tytuł</TableHead>
             <TableHead className="hidden sm:table-cell">Rozmiar</TableHead>
             <TableHead className="hidden sm:table-cell">Data</TableHead>
+            <TableHead className="hidden sm:table-cell">Odtworzenia</TableHead>
             <TableHead className="w-12" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {videos.map((video) => (
-            <TableRow key={video.id}>
+            <TableRow
+              key={video.id}
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => navigate(`/video/${video.id}`)}
+            >
               <TableCell>
-                <div className="h-9 w-14 rounded bg-muted flex items-center justify-center">
-                  <Play className="h-3 w-3 text-muted-foreground" />
-                </div>
+                {video.thumbnail_url ? (
+                  <img
+                    src={video.thumbnail_url}
+                    alt={video.title}
+                    className="h-9 w-14 rounded object-cover"
+                  />
+                ) : (
+                  <div className="h-9 w-14 rounded bg-muted flex items-center justify-center">
+                    <Play className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                )}
               </TableCell>
               <TableCell>
                 <p className="font-medium">{video.title}</p>
-                <p className="text-xs text-muted-foreground">{video.fileName}</p>
+                <p className="text-xs text-muted-foreground">{video.file_name}</p>
               </TableCell>
               <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
                 {formatSize(video.size)}
               </TableCell>
               <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
-                {new Date(video.createdAt).toLocaleDateString("pl-PL")}
+                {new Date(video.created_at).toLocaleDateString("pl-PL")}
+              </TableCell>
+              <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+                {video.plays}
               </TableCell>
               <TableCell>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={() => onDelete(video.id)}
+                  onClick={(e) => { e.stopPropagation(); onDelete(video.id); }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

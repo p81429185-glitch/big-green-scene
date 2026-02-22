@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, CheckCircle2 } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentFolderId: string | null;
-  onUpload: (video: { title: string; fileName: string; size: number; folderId: string | null }) => void;
+  onUpload: (file: File, folderId: string | null, onProgress: (pct: number) => void) => Promise<any>;
 }
 
 const UploadDialog = ({ open, onOpenChange, currentFolderId, onUpload }: Props) => {
@@ -24,33 +24,29 @@ const UploadDialog = ({ open, onOpenChange, currentFolderId, onUpload }: Props) 
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setProgress(null);
     setDone(false);
+    setError(null);
   };
 
   const handleFile = useCallback(
-    (file: File) => {
+    async (file: File) => {
       reset();
       setProgress(0);
-      const interval = setInterval(() => {
-        setProgress((p) => {
-          const next = (p ?? 0) + Math.random() * 30 + 10;
-          if (next >= 100) {
-            clearInterval(interval);
-            setDone(true);
-            const title = file.name.replace(/\.[^/.]+$/, "");
-            onUpload({ title, fileName: file.name, size: file.size, folderId: currentFolderId });
-            setTimeout(() => {
-              onOpenChange(false);
-              reset();
-            }, 800);
-            return 100;
-          }
-          return next;
-        });
-      }, 300);
+      try {
+        await onUpload(file, currentFolderId, setProgress);
+        setDone(true);
+        setTimeout(() => {
+          onOpenChange(false);
+          reset();
+        }, 800);
+      } catch (err: any) {
+        setError(err?.message || "Błąd przesyłania");
+        setProgress(null);
+      }
     },
     [onUpload, onOpenChange, currentFolderId]
   );
@@ -78,6 +74,13 @@ const UploadDialog = ({ open, onOpenChange, currentFolderId, onUpload }: Props) 
           <DialogTitle>Dodaj film</DialogTitle>
           <DialogDescription>Przeciągnij plik lub kliknij, aby wybrać</DialogDescription>
         </DialogHeader>
+
+        {error && (
+          <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
 
         {progress === null ? (
           <div
@@ -109,7 +112,7 @@ const UploadDialog = ({ open, onOpenChange, currentFolderId, onUpload }: Props) 
             )}
             <Progress value={progress} className="h-2" />
             <p className="text-sm text-muted-foreground">
-              {done ? "Gotowe!" : "Przesyłanie..."}
+              {done ? "Gotowe!" : `Przesyłanie... ${Math.round(progress)}%`}
             </p>
           </div>
         )}
