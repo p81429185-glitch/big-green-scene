@@ -1,11 +1,13 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Play,
   FolderOpen,
   Settings,
+  LogOut,
   Plus,
   LayoutGrid,
   List,
@@ -34,6 +36,12 @@ const navItems = [
 const Dashboard = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isAuthenticated, userEmail, logout } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) navigate("/auth", { replace: true });
+  }, [isAuthenticated, navigate]);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -79,18 +87,25 @@ const Dashboard = () => {
           ))}
         </nav>
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t space-y-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                JK
+                MR
               </AvatarFallback>
             </Avatar>
-            <div className="text-sm">
-              <p className="font-medium text-sidebar-foreground">Jan Kowalski</p>
+            <div className="text-sm min-w-0">
+              <p className="font-medium text-sidebar-foreground truncate">{userEmail}</p>
               <p className="text-xs text-muted-foreground">Admin</p>
             </div>
           </div>
+          <button
+            onClick={() => { logout(); navigate("/auth"); }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-sidebar-accent/60 transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            Wyloguj się
+          </button>
         </div>
       </aside>
 
