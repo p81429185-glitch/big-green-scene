@@ -78,7 +78,6 @@ function generateCustomPlayerCode(
     ? `<img src="${brandLogoUrl.trim()}" style="position:absolute;top:12px;right:12px;height:30px;z-index:10;pointer-events:none;" />`
     : "";
 
-  // If secure, video src starts empty and is fetched via edge function
   const videoSrc = useSecureUrl ? "" : videoUrl;
   const secureFetchScript = useSecureUrl ? `
     (function(){
@@ -179,7 +178,6 @@ const EmbedDialog = ({
   const [useOembed, setUseOembed] = useState(false);
   const [injectSeo, setInjectSeo] = useState(true);
   const [showCode, setShowCode] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [allowedDomain, setAllowedDomain] = useState("");
   const [domainRestricted, setDomainRestricted] = useState(false);
@@ -190,7 +188,6 @@ const EmbedDialog = ({
   const [popoverResponsive, setPopoverResponsive] = useState(false);
   const [popoverText, setPopoverText] = useState("Kliknij, aby obejrzeć wideo");
 
-  // Branding states - initialized from global brand settings
   const { settings: brandSettings } = useBrandSettings();
   const [brandColor, setBrandColor] = useState("#16a34a");
   const [brandIconColor, setBrandIconColor] = useState("#ffffff");
@@ -200,7 +197,6 @@ const EmbedDialog = ({
   const [brandSkipBgColor, setBrandSkipBgColor] = useState("rgba(0,0,0,0.45)");
   const [brandingOpen, setBrandingOpen] = useState(false);
 
-  // Sync from global brand settings when dialog opens
   useEffect(() => {
     if (open) {
       setBrandColor(brandSettings.player_color);
@@ -219,38 +215,24 @@ const EmbedDialog = ({
     let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
       rawCode = generateCustomPlayerCode(
-        videoUrl,
-        brandColor,
-        brandIconColor,
-        brandProgressColor,
-        brandLogoUrl,
-        brandPlayBgColor,
-        brandSkipBgColor,
-        sizeMode,
-        embedWidth,
-        embedHeight,
+        videoUrl, brandColor, brandIconColor, brandProgressColor,
+        brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
+        sizeMode, embedWidth, embedHeight,
         domainRestricted && !!allowedDomain.trim() && !!videoId,
-        videoId || "",
-        supabaseUrl,
-        anonKey,
+        videoId || "", supabaseUrl, anonKey,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
         const thumb = thumbnailUrl || videoUrl;
         if (popoverResponsive) {
-          rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">
-  <img src="${thumb}" style="width:100%;max-width:${popoverWidth}px;" alt="Wideo" />
-</a>`;
+          rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">\n  <img src="${thumb}" style="width:100%;max-width:${popoverWidth}px;" alt="Wideo" />\n</a>`;
         } else {
-          rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">
-  <img src="${thumb}" width="${popoverWidth}" height="${popoverHeight}" alt="Wideo" />
-</a>`;
+          rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">\n  <img src="${thumb}" width="${popoverWidth}" height="${popoverHeight}" alt="Wideo" />\n</a>`;
         }
       } else {
         rawCode = `<a href="${videoUrl}" target="_blank" rel="noopener">${popoverText}</a>`;
       }
     }
-
     return rawCode;
   }, [
     embedTab, sizeMode, embedWidth, embedHeight, videoUrl, thumbnailUrl, videoId,
@@ -261,7 +243,6 @@ const EmbedDialog = ({
   ]);
 
   const handleCopy = async () => {
-    // Save domain settings to DB if restricted
     if (domainRestricted && allowedDomain.trim() && videoId) {
       try {
         const { data: existing } = await supabase
@@ -269,13 +250,11 @@ const EmbedDialog = ({
           .select("id")
           .eq("video_id", videoId)
           .maybeSingle();
-
         const payload = {
           video_id: videoId,
           restrict_domain: true,
           allowed_domains: [allowedDomain.trim()],
         };
-
         if (existing) {
           await supabase
             .from("video_embed_settings" as any)
@@ -288,7 +267,6 @@ const EmbedDialog = ({
         console.error("Failed to save embed settings", e);
       }
     } else if (!domainRestricted && videoId) {
-      // Disable restriction if unchecked
       try {
         await supabase
           .from("video_embed_settings" as any)
@@ -296,12 +274,10 @@ const EmbedDialog = ({
           .eq("video_id", videoId);
       } catch {}
     }
-
     navigator.clipboard.writeText(embedCode);
     toast.success("Kod skopiowany do schowka");
   };
 
-  // Compute play button bg from brand color when brand color changes
   const handleBrandColorChange = (color: string) => {
     setBrandColor(color);
     const r = parseInt(color.slice(1, 3), 16);
@@ -317,157 +293,45 @@ const EmbedDialog = ({
         <Palette className="h-4 w-4" />
         Branding
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-4 pt-2">
-        {/* Logo URL */}
+      <CollapsibleContent className="space-y-3 pt-2">
         <div className="space-y-1.5">
-          <Label className="text-sm">URL logo</Label>
-          <Input
-            value={brandLogoUrl}
-            onChange={(e) => setBrandLogoUrl(e.target.value)}
-            placeholder="https://example.com/logo.png"
-            className="h-8 text-sm"
-          />
-          <p className="text-xs text-muted-foreground">Logo pojawi się w prawym górnym rogu playera</p>
+          <Label className="text-xs">URL logo</Label>
+          <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="h-8 text-xs" />
         </div>
-
-        {/* Color pickers */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
             <Label className="text-xs">Pasek kontrolny</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={brandColor}
-                onChange={(e) => handleBrandColorChange(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-border"
-              />
-              <span className="text-xs text-muted-foreground font-mono">{brandColor}</span>
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={brandColor} onChange={(e) => handleBrandColorChange(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border" />
+              <span className="text-[10px] text-muted-foreground font-mono">{brandColor}</span>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Ikony / przyciski</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={brandIconColor}
-                onChange={(e) => setBrandIconColor(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-border"
-              />
-              <span className="text-xs text-muted-foreground font-mono">{brandIconColor}</span>
+          <div className="space-y-1">
+            <Label className="text-xs">Ikony</Label>
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={brandIconColor} onChange={(e) => setBrandIconColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border" />
+              <span className="text-[10px] text-muted-foreground font-mono">{brandIconColor}</span>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Pasek postępu</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={brandProgressColor}
-                onChange={(e) => setBrandProgressColor(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-border"
-              />
-              <span className="text-xs text-muted-foreground font-mono">{brandProgressColor}</span>
+          <div className="space-y-1">
+            <Label className="text-xs">Postęp</Label>
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={brandProgressColor} onChange={(e) => setBrandProgressColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border" />
+              <span className="text-[10px] text-muted-foreground font-mono">{brandProgressColor}</span>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tło przycisku play</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={brandColor}
-                onChange={(e) => {
-                  const c = e.target.value;
-                  const r = parseInt(c.slice(1, 3), 16);
-                  const g = parseInt(c.slice(3, 5), 16);
-                  const b = parseInt(c.slice(5, 7), 16);
-                  setBrandPlayBgColor(`rgba(${r},${g},${b},0.8)`);
-                }}
-                className="w-8 h-8 rounded cursor-pointer border border-border"
-              />
-              <span className="text-xs text-muted-foreground font-mono">{brandPlayBgColor}</span>
+          <div className="space-y-1">
+            <Label className="text-xs">Tło play</Label>
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={brandColor} onChange={(e) => { const c = e.target.value; const r = parseInt(c.slice(1,3),16); const g = parseInt(c.slice(3,5),16); const b = parseInt(c.slice(5,7),16); setBrandPlayBgColor(`rgba(${r},${g},${b},0.8)`); }} className="w-7 h-7 rounded cursor-pointer border border-border" />
+              <span className="text-[10px] text-muted-foreground font-mono truncate">{brandPlayBgColor}</span>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tło skip 15s</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={brandSkipBgColor.startsWith("rgba") ? "#000000" : brandSkipBgColor}
-                onChange={(e) => {
-                  const c = e.target.value;
-                  const r = parseInt(c.slice(1, 3), 16);
-                  const g = parseInt(c.slice(3, 5), 16);
-                  const b = parseInt(c.slice(5, 7), 16);
-                  setBrandSkipBgColor(`rgba(${r},${g},${b},0.45)`);
-                }}
-                className="w-8 h-8 rounded cursor-pointer border border-border"
-              />
-              <span className="text-xs text-muted-foreground font-mono">{brandSkipBgColor}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Live preview */}
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Podgląd</Label>
-          <div className="rounded-lg overflow-hidden bg-black aspect-video border border-border relative">
-            {thumbnailUrl ? (
-              <img src={thumbnailUrl} alt="Podgląd" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-neutral-900" />
-            )}
-            {/* Logo overlay */}
-            {brandLogoUrl.trim() && (
-              <img
-                src={brandLogoUrl.trim()}
-                alt="Logo"
-                className="absolute top-2 right-2 h-5 z-10"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-            )}
-            {/* Skip buttons preview */}
-            <div className="absolute top-1/2 left-[15%] -translate-y-1/2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[8px]" style={{ background: brandSkipBgColor, color: brandIconColor }}>-15</div>
-            </div>
-            <div className="absolute top-1/2 right-[15%] -translate-y-1/2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[8px]" style={{ background: brandSkipBgColor, color: brandIconColor }}>+15</div>
-            </div>
-            {/* Big play button overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ background: brandPlayBgColor }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill={brandIconColor}>
-                  <polygon points="5,3 19,12 5,21" />
-                </svg>
-              </div>
-            </div>
-            {/* Control bar overlay */}
-            <div
-              className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 px-2 py-1.5"
-              style={{ background: brandColor }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={brandIconColor}>
-                <polygon points="5,3 19,12 5,21" />
-              </svg>
-              <span className="text-[10px]" style={{ color: brandIconColor }}>0:00 / 3:45</span>
-              <div className="flex-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.3)" }}>
-                <div className="h-full rounded-full w-1/3" style={{ background: brandProgressColor }} />
-              </div>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={brandIconColor} strokeWidth="2">
-                <polygon points="11,5 6,9 2,9 2,15 6,15 11,19" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              </svg>
-              <div className="w-8 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.3)" }}>
-                <div className="h-full rounded-full w-2/3" style={{ background: brandProgressColor }} />
-              </div>
-              <span className="text-[9px]" style={{ color: brandIconColor }}>HD</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={brandIconColor} strokeWidth="2">
-                <polyline points="15,3 21,3 21,9" />
-                <polyline points="9,21 3,21 3,15" />
-                <line x1="21" y1="3" x2="14" y2="10" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-              </svg>
+          <div className="space-y-1">
+            <Label className="text-xs">Tło skip</Label>
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={brandSkipBgColor.startsWith("rgba") ? "#000000" : brandSkipBgColor} onChange={(e) => { const c = e.target.value; const r = parseInt(c.slice(1,3),16); const g = parseInt(c.slice(3,5),16); const b = parseInt(c.slice(5,7),16); setBrandSkipBgColor(`rgba(${r},${g},${b},0.45)`); }} className="w-7 h-7 rounded cursor-pointer border border-border" />
+              <span className="text-[10px] text-muted-foreground font-mono truncate">{brandSkipBgColor}</span>
             </div>
           </div>
         </div>
@@ -476,44 +340,28 @@ const EmbedDialog = ({
   );
 
   const sizeOptionsJsx = (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <Label className="text-sm font-medium">Rozmiar</Label>
-      <RadioGroup value={sizeMode} onValueChange={setSizeMode} className="space-y-3">
-        <div className="flex items-start gap-3">
+      <RadioGroup value={sizeMode} onValueChange={setSizeMode} className="space-y-2">
+        <div className="flex items-start gap-2">
           <RadioGroupItem value="responsive" id="size-responsive" className="mt-0.5" />
           <div>
-            <Label htmlFor="size-responsive" className="font-medium cursor-pointer">
+            <Label htmlFor="size-responsive" className="font-medium cursor-pointer text-sm">
               Responsywny
-              <span className="ml-2 text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                Zalecany
-              </span>
+              <span className="ml-1.5 text-[10px] text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">Zalecany</span>
             </Label>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Najłatwiejsza opcja. Player dostosuje się do szerokości kontenera.
-            </p>
+            <p className="text-xs text-muted-foreground">Dostosuje się do kontenera.</p>
           </div>
         </div>
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2">
           <RadioGroupItem value="fixed" id="size-fixed" className="mt-0.5" />
           <div>
-            <Label htmlFor="size-fixed" className="font-medium cursor-pointer">
-              Stały rozmiar
-            </Label>
+            <Label htmlFor="size-fixed" className="font-medium cursor-pointer text-sm">Stały rozmiar</Label>
             {sizeMode === "fixed" && (
-              <div className="flex items-center gap-2 mt-2">
-                <Input
-                  type="number"
-                  value={embedWidth}
-                  onChange={(e) => setEmbedWidth(e.target.value)}
-                  className="w-20 h-8 text-sm"
-                />
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Input type="number" value={embedWidth} onChange={(e) => setEmbedWidth(e.target.value)} className="w-16 h-7 text-xs" />
                 <span className="text-xs text-muted-foreground">×</span>
-                <Input
-                  type="number"
-                  value={embedHeight}
-                  onChange={(e) => setEmbedHeight(e.target.value)}
-                  className="w-20 h-8 text-sm"
-                />
+                <Input type="number" value={embedHeight} onChange={(e) => setEmbedHeight(e.target.value)} className="w-16 h-7 text-xs" />
                 <span className="text-xs text-muted-foreground">px</span>
               </div>
             )}
@@ -523,123 +371,52 @@ const EmbedDialog = ({
     </div>
   );
 
-  const videoPreviewJsx = (
-    <div className="rounded-lg overflow-hidden bg-black aspect-video border border-border">
-      {thumbnailUrl ? (
-        <img
-          src={thumbnailUrl}
-          alt="Podgląd wideo"
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <video
-          src={videoUrl}
-          className="w-full h-full"
-          muted
-          playsInline
-        />
-      )}
-    </div>
-  );
-
   const advancedOptionsJsx = (
     <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
       <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
-        {advancedOpen ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
-        )}
-        Zaawansowane opcje
+        {advancedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        Zaawansowane
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-4 pt-2">
+      <CollapsibleContent className="space-y-3 pt-2">
         <div>
-          <Label className="text-sm font-medium mb-2 block">Metoda osadzania</Label>
-          <RadioGroup value={embedMethod} onValueChange={setEmbedMethod} className="space-y-2">
-            <div className="flex items-start gap-3">
+          <Label className="text-sm font-medium mb-1.5 block">Metoda osadzania</Label>
+          <RadioGroup value={embedMethod} onValueChange={setEmbedMethod} className="space-y-1.5">
+            <div className="flex items-start gap-2">
               <RadioGroupItem value="standard" id="method-standard" className="mt-0.5" />
-              <div>
-                <Label htmlFor="method-standard" className="font-medium cursor-pointer">
-                  Standardowy
-                  <span className="ml-2 text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                    Zalecany
-                  </span>
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Osadzanie JavaScript — lepsze śledzenie i personalizacja.
-                </p>
-              </div>
+              <Label htmlFor="method-standard" className="font-medium cursor-pointer text-sm">
+                Standardowy
+                <span className="ml-1.5 text-[10px] text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">Zalecany</span>
+              </Label>
             </div>
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2">
               <RadioGroupItem value="fallback" id="method-fallback" className="mt-0.5" />
-              <div>
-                <Label htmlFor="method-fallback" className="font-medium cursor-pointer">
-                  Fallback (iframe)
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Prosty iframe — kompatybilny z większością platform.
-                </p>
-              </div>
+              <Label htmlFor="method-fallback" className="font-medium cursor-pointer text-sm">Fallback (iframe)</Label>
             </div>
           </RadioGroup>
         </div>
         <Separator />
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="legacy"
-              checked={useLegacy}
-              onCheckedChange={(v) => setUseLegacy(v === true)}
-            />
-            <Label htmlFor="legacy" className="text-sm cursor-pointer">
-              Użyj starszego kodu embed
-            </Label>
+            <Checkbox id="legacy" checked={useLegacy} onCheckedChange={(v) => setUseLegacy(v === true)} />
+            <Label htmlFor="legacy" className="text-xs cursor-pointer">Starszy kod embed</Label>
           </div>
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="oembed"
-              checked={useOembed}
-              onCheckedChange={(v) => setUseOembed(v === true)}
-            />
-            <Label htmlFor="oembed" className="text-sm cursor-pointer">
-              Użyj oEmbed URL
-            </Label>
+            <Checkbox id="oembed" checked={useOembed} onCheckedChange={(v) => setUseOembed(v === true)} />
+            <Label htmlFor="oembed" className="text-xs cursor-pointer">oEmbed URL</Label>
           </div>
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="seo"
-              checked={injectSeo}
-              onCheckedChange={(v) => setInjectSeo(v === true)}
-            />
-            <Label htmlFor="seo" className="text-sm cursor-pointer">
-              Dodaj metadane SEO
-            </Label>
+            <Checkbox id="seo" checked={injectSeo} onCheckedChange={(v) => setInjectSeo(v === true)} />
+            <Label htmlFor="seo" className="text-xs cursor-pointer">Metadane SEO</Label>
           </div>
         </div>
         <Separator />
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="domain-restrict"
-              checked={domainRestricted}
-              onCheckedChange={(v) => setDomainRestricted(v === true)}
-            />
-            <Label htmlFor="domain-restrict" className="text-sm cursor-pointer">
-              Ogranicz do domeny
-            </Label>
+            <Checkbox id="domain-restrict" checked={domainRestricted} onCheckedChange={(v) => setDomainRestricted(v === true)} />
+            <Label htmlFor="domain-restrict" className="text-xs cursor-pointer">Ogranicz do domeny</Label>
           </div>
           {domainRestricted && (
-            <>
-              <Input
-                value={allowedDomain}
-                onChange={(e) => setAllowedDomain(e.target.value)}
-                placeholder="np. mojastrona.pl"
-                className="h-8 text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Embed pobierze wideo przez zabezpieczony serwer — zadziała tylko na podanej domenie.
-              </p>
-            </>
+            <Input value={allowedDomain} onChange={(e) => setAllowedDomain(e.target.value)} placeholder="np. mojastrona.pl" className="h-7 text-xs" />
           )}
         </div>
       </CollapsibleContent>
@@ -654,253 +431,188 @@ const EmbedDialog = ({
     </div>
   );
 
+  const leftColumnContent = () => {
+    if (embedTab === "inline") {
+      return (
+        <div className="space-y-3">
+          {brandingJsx}
+          <Separator />
+          {sizeOptionsJsx}
+          <Separator />
+          {advancedOptionsJsx}
+        </div>
+      );
+    }
+    if (embedTab === "popover") {
+      return (
+        <RadioGroup value={popoverMode} onValueChange={setPopoverMode} className="space-y-3">
+          <div className="flex items-start gap-2">
+            <RadioGroupItem value="thumbnail" id="pop-thumb" className="mt-0.5" />
+            <div className="space-y-2">
+              <Label htmlFor="pop-thumb" className="font-medium cursor-pointer text-sm">Miniaturka</Label>
+              {popoverMode === "thumbnail" && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Input type="number" value={popoverWidth} onChange={(e) => setPopoverWidth(e.target.value)} className="w-16 h-7 text-xs" />
+                    <span className="text-xs text-muted-foreground">×</span>
+                    <Input type="number" value={popoverHeight} onChange={(e) => setPopoverHeight(e.target.value)} className="w-16 h-7 text-xs" />
+                    <span className="text-xs text-muted-foreground">px</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="pop-responsive" checked={popoverResponsive} onCheckedChange={(v) => setPopoverResponsive(v === true)} />
+                    <Label htmlFor="pop-responsive" className="text-xs cursor-pointer">Responsywny</Label>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <RadioGroupItem value="textlink" id="pop-text" className="mt-0.5" />
+            <div className="space-y-2">
+              <Label htmlFor="pop-text" className="font-medium cursor-pointer text-sm">Link tekstowy</Label>
+              {popoverMode === "textlink" && (
+                <Input value={popoverText} onChange={(e) => setPopoverText(e.target.value)} className="h-7 text-xs" placeholder="Tekst linku..." />
+              )}
+            </div>
+          </div>
+        </RadioGroup>
+      );
+    }
+    if (embedTab === "llm") {
+      return (
+        <div className="space-y-3">
+          {sizeOptionsJsx}
+        </div>
+      );
+    }
+    if (embedTab === "email") {
+      return placeholderJsx("Osadzanie w emailach");
+    }
+    if (embedTab === "transcript") {
+      return transcription ? (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Skopiuj transkrypcję do osadzenia na stronie:</p>
+          <div className="bg-muted rounded-md p-3 max-h-[300px] overflow-y-auto">
+            <pre className="text-xs whitespace-pre-wrap select-all">{transcription}</pre>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(transcription); toast.success("Transkrypcja skopiowana"); }}>
+            Kopiuj transkrypcję
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+          <FileText className="h-8 w-8" />
+          <p className="text-sm font-medium">Brak transkrypcji</p>
+          <p className="text-xs">Najpierw wykonaj transkrypcję na stronie wideo</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const previewSrcDoc = useMemo(() => {
+    return `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;font-family:sans-serif;padding:20px;box-sizing:border-box;}body>div{width:100%;max-width:800px;}</style></head><body>${embedCode}</body></html>`;
+  }, [embedCode]);
+
+  const rightColumnContent = () => {
+    if (showCode) {
+      return (
+        <div className="flex-1 min-h-0 overflow-auto">
+          <div className="bg-muted rounded-md p-4 h-full">
+            <code className="text-xs break-all whitespace-pre-wrap select-all">{embedCode}</code>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 min-h-0 flex flex-col">
+        {/* Browser mockup */}
+        <div className="rounded-lg overflow-hidden border border-border flex flex-col flex-1 min-h-0">
+          <div className="bg-muted/60 px-3 py-2 flex items-center gap-2 border-b border-border shrink-0">
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+              <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+            </div>
+            <div className="bg-background px-3 py-1 rounded text-[11px] text-muted-foreground flex-1 truncate">
+              https://your-site.com/page
+            </div>
+          </div>
+          <iframe
+            sandbox="allow-scripts"
+            srcDoc={previewSrcDoc}
+            className="w-full flex-1 border-none bg-neutral-100"
+            style={{ minHeight: "200px" }}
+            title="Podgląd embed"
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
-        <div className="p-6 pb-4 space-y-3">
+      <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 gap-0">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-3 space-y-2 shrink-0">
           <DialogHeader>
             <DialogTitle className="text-xl">Osadź media</DialogTitle>
-            <DialogDescription>Wybierz sposób osadzania.</DialogDescription>
+            <DialogDescription>Wybierz sposób osadzania i dostosuj wygląd.</DialogDescription>
           </DialogHeader>
-          <div className="flex items-start gap-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 rounded-md px-3 py-2.5 text-xs">
+          <div className="flex items-start gap-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 rounded-md px-3 py-2 text-xs">
             <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>
-              Standardowe osadzanie inline jest najlepsze dla większości platform CMS.
-            </span>
+            <span>Standardowe osadzanie inline jest najlepsze dla większości platform CMS.</span>
           </div>
         </div>
 
-        <Tabs
-          value={embedTab}
-          onValueChange={setEmbedTab}
-          className="flex-1 flex flex-col min-h-0"
-        >
-          <div className="px-6">
+        {/* Tabs header */}
+        <Tabs value={embedTab} onValueChange={setEmbedTab} className="flex-1 flex flex-col min-h-0">
+          <div className="px-6 shrink-0">
             <TabsList className="w-full bg-transparent border-b border-border rounded-none h-auto p-0 gap-0">
-              <TabsTrigger
-                value="inline"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-              >
-                <Monitor className="h-4 w-4 mr-1.5" />
-                Inline
+              <TabsTrigger value="inline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2 text-sm">
+                <Monitor className="h-4 w-4 mr-1.5" />Inline
               </TabsTrigger>
-              <TabsTrigger
-                value="popover"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-              >
-                <Layers className="h-4 w-4 mr-1.5" />
-                Popover
+              <TabsTrigger value="popover" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2 text-sm">
+                <Layers className="h-4 w-4 mr-1.5" />Popover
               </TabsTrigger>
-              <TabsTrigger
-                value="llm"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-              >
-                <MessageSquareText className="h-4 w-4 mr-1.5" />
-                LLM-Friendly
+              <TabsTrigger value="llm" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2 text-sm">
+                <MessageSquareText className="h-4 w-4 mr-1.5" />LLM
               </TabsTrigger>
-              <TabsTrigger
-                value="email"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-              >
-                <Mail className="h-4 w-4 mr-1.5" />
-                Email
+              <TabsTrigger value="email" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2 text-sm">
+                <Mail className="h-4 w-4 mr-1.5" />Email
               </TabsTrigger>
-              <TabsTrigger
-                value="transcript"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
-              >
-                <FileText className="h-4 w-4 mr-1.5" />
-                Transkrypcja
+              <TabsTrigger value="transcript" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2 text-sm">
+                <FileText className="h-4 w-4 mr-1.5" />Transkrypcja
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            <TabsContent value="inline" className="mt-0 space-y-4">
-              {previewMode ? (
-                <div className="rounded-lg overflow-hidden border border-border">
-                  <div className="bg-muted px-3 py-2 flex items-center gap-2 border-b border-border">
-                    <div className="flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-red-400" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                      <div className="w-3 h-3 rounded-full bg-green-400" />
-                    </div>
-                    <div className="bg-background px-3 py-1 rounded text-xs text-muted-foreground flex-1 truncate">
-                      https://your-site.com/page
-                    </div>
-                  </div>
-                  <iframe
-                    sandbox="allow-scripts"
-                    srcDoc={`<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;font-family:sans-serif;padding:20px;box-sizing:border-box;}body>div{width:100%;max-width:800px;}</style></head><body>${embedCode}</body></html>`}
-                    className="w-full border-none"
-                    style={{ aspectRatio: "16/9", minHeight: "300px" }}
-                    title="Podgląd embed"
-                  />
-                </div>
-              ) : showCode ? (
-                <div className="bg-muted rounded-md p-3">
-                  <code className="text-xs break-all whitespace-pre-wrap select-all">
-                    {embedCode}
-                  </code>
-                </div>
-              ) : (
-                <>
-                  {videoPreviewJsx}
-                  {brandingJsx}
-                  <Separator />
-                  {sizeOptionsJsx}
-                  <Separator />
-                  {advancedOptionsJsx}
-                </>
-              )}
-            </TabsContent>
+          {/* Two-column body */}
+          <div className="flex-1 min-h-0 grid grid-cols-5 gap-0">
+            {/* Left: settings */}
+            <div className="col-span-2 border-r border-border overflow-y-auto p-4">
+              {leftColumnContent()}
+            </div>
 
-            <TabsContent value="popover" className="mt-0 space-y-4">
-              {showCode ? (
-                <div className="bg-muted rounded-md p-3">
-                  <code className="text-xs break-all whitespace-pre-wrap select-all">
-                    {embedCode}
-                  </code>
-                </div>
-              ) : (
-                <RadioGroup
-                  value={popoverMode}
-                  onValueChange={setPopoverMode}
-                  className="space-y-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <RadioGroupItem value="thumbnail" id="pop-thumb" className="mt-0.5" />
-                    <div className="space-y-2">
-                      <Label htmlFor="pop-thumb" className="font-medium cursor-pointer">
-                        Wyświetl jako miniaturkę
-                      </Label>
-                      {popoverMode === "thumbnail" && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              value={popoverWidth}
-                              onChange={(e) => setPopoverWidth(e.target.value)}
-                              className="w-20 h-8 text-sm"
-                            />
-                            <span className="text-xs text-muted-foreground">×</span>
-                            <Input
-                              type="number"
-                              value={popoverHeight}
-                              onChange={(e) => setPopoverHeight(e.target.value)}
-                              className="w-20 h-8 text-sm"
-                            />
-                            <span className="text-xs text-muted-foreground">px</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id="pop-responsive"
-                              checked={popoverResponsive}
-                              onCheckedChange={(v) => setPopoverResponsive(v === true)}
-                            />
-                            <Label htmlFor="pop-responsive" className="text-sm cursor-pointer">
-                              Responsywny
-                            </Label>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <RadioGroupItem value="textlink" id="pop-text" className="mt-0.5" />
-                    <div className="space-y-2">
-                      <Label htmlFor="pop-text" className="font-medium cursor-pointer">
-                        Wyświetl jako link tekstowy
-                      </Label>
-                      {popoverMode === "textlink" && (
-                        <Input
-                          value={popoverText}
-                          onChange={(e) => setPopoverText(e.target.value)}
-                          className="h-8 text-sm"
-                          placeholder="Tekst linku..."
-                        />
-                      )}
-                    </div>
-                  </div>
-                </RadioGroup>
-              )}
-            </TabsContent>
-
-            <TabsContent value="llm" className="mt-0 space-y-4">
-              {showCode ? (
-                <div className="bg-muted rounded-md p-3">
-                  <code className="text-xs break-all whitespace-pre-wrap select-all">
-                    {embedCode}
-                  </code>
-                </div>
-              ) : (
-                <>
-                  {videoPreviewJsx}
-                  {sizeOptionsJsx}
-                </>
-              )}
-            </TabsContent>
-
-            <TabsContent value="email" className="mt-0">
-              {placeholderJsx("Osadzanie w emailach")}
-            </TabsContent>
-
-            <TabsContent value="transcript" className="mt-0">
-              {transcription ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Skopiuj transkrypcję do osadzenia na stronie:
-                  </p>
-                  <div className="bg-muted rounded-md p-3 max-h-[300px] overflow-y-auto">
-                    <pre className="text-xs whitespace-pre-wrap select-all">{transcription}</pre>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(transcription);
-                      toast.success("Transkrypcja skopiowana");
-                    }}
-                  >
-                    Kopiuj transkrypcję
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
-                  <FileText className="h-8 w-8" />
-                  <p className="text-sm font-medium">Brak transkrypcji</p>
-                  <p className="text-xs">Najpierw wykonaj transkrypcję na stronie wideo</p>
-                </div>
-              )}
-            </TabsContent>
+            {/* Right: live preview / code */}
+            <div className="col-span-3 p-4 flex flex-col min-h-0">
+              {rightColumnContent()}
+            </div>
           </div>
         </Tabs>
 
-        <div className="border-t border-border px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant={previewMode ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => { setPreviewMode(!previewMode); setShowCode(false); }}
-              className="text-muted-foreground"
-            >
-              <Monitor className="h-4 w-4 mr-1.5" />
-              Podgląd
-            </Button>
-            <Button
-              variant={showCode ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => { setShowCode(!showCode); setPreviewMode(false); }}
-              className="text-muted-foreground"
-            >
-              {showCode ? (
-                <EyeOff className="h-4 w-4 mr-1.5" />
-              ) : (
-                <Eye className="h-4 w-4 mr-1.5" />
-              )}
-              {showCode ? "Ukryj kod" : "Pokaż kod"}
-            </Button>
-          </div>
+        {/* Footer */}
+        <div className="border-t border-border px-6 py-3 flex items-center justify-between shrink-0">
+          <Button
+            variant={showCode ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setShowCode(!showCode)}
+            className="text-muted-foreground"
+          >
+            {showCode ? <EyeOff className="h-4 w-4 mr-1.5" /> : <Eye className="h-4 w-4 mr-1.5" />}
+            {showCode ? "Podgląd" : "Pokaż kod"}
+          </Button>
           <Button size="sm" onClick={handleCopy}>
             <Code className="h-4 w-4 mr-1.5" />
             Kopiuj kod
