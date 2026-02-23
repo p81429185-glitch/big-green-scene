@@ -1,64 +1,67 @@
 
 
-## Podglad embed w oknie podgladu
+## Redesign dialogu Embed -- wiekszy, czystszy, wygodniejszy
 
-### Obecny stan
-Dialog embed ma maly statyczny podglad brandingu (miniaturka z nalozonymi kolorami), ale nie pokazuje jak embed bedzie wygladal na prawdziwej stronie -- z kontrolkami, volume sliderem, skip buttonami itp.
+### Problem
+Dialog embed jest za maly (`max-w-2xl` = 672px), wszystko jest scisnete w jednej kolumnie, podglad jest malutki, i calosc wyglada na zatloczona. Uzytkownik nie widzi wszystkiego wygodnie.
 
-### Zmiana
+### Rozwiazanie
 
-Dodac przycisk "Podglad embed" obok "Pokaz kod embed" w dolnym pasku dialogu. Po kliknieciu, zamiast kodu zrodlowego, wyswietlic iframe z renderowanym kodem embed w symulowanym kontekscie strony.
+Przeprojektowac dialog na **layout dwukolumnowy w pelnym ekranie**:
+- Lewa kolumna: ustawienia (rozmiar, branding, zaawansowane opcje)
+- Prawa kolumna: duzy podglad na zywo (browser mockup z iframe) -- **zawsze widoczny**, nie trzeba klikac przycisku
 
-#### Szczegoly implementacji
+### Zmiany w `EmbedDialog.tsx`
 
-**Nowy stan**: `previewMode` (boolean) -- przelacza miedzy normalnym widokiem ustawien a podgladem.
+1. **Wiekszy dialog**: `max-w-6xl` zamiast `max-w-2xl`, `h-[90vh]`
 
-**Rendering podgladu**:
-- Uzyc `srcDoc` na elemencie `<iframe>` -- wstrzyknac wygenerowany `embedCode` opakowany w minimalne HTML z bialym tlem i centrowanym contentem
-- iframe bedzie mial styl `width:100%; aspect-ratio:16/9; border:1px solid border`
-- Nad iframe bedzie pasek symulujacy przegladarke (szare tlo + fake URL bar) dla realizmu
+2. **Layout dwukolumnowy**:
+   - Lewa strona (~40%): ustawienia w ScrollArea -- taby (Inline/Popover/LLM/Email/Transkrypcja), rozmiar, branding, zaawansowane opcje
+   - Prawa strona (~60%): duzy podglad embed w browser mockup z iframe `srcDoc` -- aktualizuje sie na zywo przy kazdej zmianie ustawien
 
-**Szablon HTML dla iframe srcDoc**:
-```html
-<!DOCTYPE html>
-<html>
-<head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;font-family:sans-serif;}</style></head>
-<body>
-  ${embedCode}
-</body>
-</html>
+3. **Podglad zawsze widoczny**: Usunac osobny przycisk "Podglad" i stan `previewMode` -- podglad jest po prostu zawsze po prawej stronie. Przycisk "Pokaz kod" przelacza prawa strone miedzy podgladem a kodem.
+
+4. **Czystszy footer**: Tylko "Pokaz kod" i "Kopiuj kod" -- bez "Podglad" (bo juz widoczny)
+
+5. **Browser mockup w prawej kolumnie**:
+   - Symulowany pasek przegladarki (kropki + URL bar)
+   - iframe z `srcDoc` renderujacy `embedCode` na zywo
+   - Duzy, czytelny podglad zajmujacy cala prawda strone
+
+### Schemat layoutu
+
+```text
++------------------------------------------------------------------+
+| Osadz media                                                   [X]|
+| Info banner                                                      |
++------------------------------------------------------------------+
+| Taby: Inline | Popover | LLM | Email | Transkrypcja             |
++-------------------------------+----------------------------------+
+|  USTAWIENIA (scroll)          |  PODGLAD NA ZYWO                 |
+|                               |  [o o o] https://your-site.com   |
+|  [Miniaturka]                 |  +------------------------------+ |
+|  [Branding v]                 |  |                              | |
+|  [Rozmiar]                    |  |   iframe z embedCode         | |
+|  [Zaawansowane v]             |  |                              | |
+|                               |  +------------------------------+ |
++-------------------------------+----------------------------------+
+| [Pokaz kod]                              [Kopiuj kod]            |
++------------------------------------------------------------------+
 ```
 
-**Umiejscowienie**: Podglad zastapi zawartosc aktywnego taba (tak jak `showCode` zastepuje ustawienia kodem). Przyciski w dolnym pasku: "Podglad" | "Pokaz kod" | "Kopiuj kod".
-
-#### Zmiany w pliku
+### Plik do edycji
 
 | Plik | Akcja |
 |------|-------|
-| `src/components/dashboard/EmbedDialog.tsx` | Edycja -- dodac stan `previewMode`, przycisk w footer, renderowanie iframe z `srcDoc` |
+| `src/components/dashboard/EmbedDialog.tsx` | Edycja -- nowy layout dwukolumnowy, wiekszy dialog, podglad zawsze widoczny |
 
-#### Techniczne szczegoly
+### Szczegoly techniczne
 
-W `EmbedDialog.tsx`:
-
-1. Nowy stan: `const [previewMode, setPreviewMode] = useState(false);`
-
-2. Nowy JSX dla podgladu (wyswietlany gdy `previewMode === true`):
-   - Symulowany pasek przegladarki (szary div z okraglymi "kropkami" i polem URL)
-   - `<iframe sandbox="allow-scripts" srcDoc={...} />` z wygenerowanym embedCode
-   - Iframe ma wylaczony allow-same-origin dla bezpieczenstwa
-
-3. Logika przelaczania w TabsContent:
-   - Jesli `previewMode` -> pokaz podglad iframe
-   - Jesli `showCode` -> pokaz kod
-   - W przeciwnym razie -> pokaz ustawienia
-
-4. W dolnym pasku dodac przycisk "Podglad" z ikona `Monitor`:
-   ```
-   <Button onClick={() => { setPreviewMode(!previewMode); setShowCode(false); }}>
-     <Monitor /> Podglad
-   </Button>
-   ```
-
-5. Klikniecie "Pokaz kod" wylacza `previewMode` i odwrotnie -- wzajemne wylaczanie.
+- Dialog: `max-w-6xl h-[90vh]` z `flex flex-col`
+- Srodkowa czesc: `grid grid-cols-5 gap-0 flex-1 min-h-0` (2 kolumny na ustawienia, 3 na podglad)
+- Lewa kolumna: `col-span-2 border-r overflow-y-auto p-4` z ustawieniami
+- Prawa kolumna: `col-span-3 p-4 flex flex-col` z browser mockup i iframe
+- Usunac stan `previewMode` -- podglad jest domyslny w prawej kolumnie
+- Gdy `showCode=true`, prawa kolumna pokazuje kod zamiast iframe
+- iframe: `sandbox="allow-scripts"` z `srcDoc` renderujacym embedCode, `flex-1` zeby zajmowal cala dostepna przestrzen
 
