@@ -1,85 +1,64 @@
 
-## Naprawa embeda: branding, kontrolki i zabezpieczenie domeny
 
-### Problem 1: Branding nie dziala w embedzie
-Wygenerowany kod embed (`generateCustomPlayerCode`) ma hardcoded kolory i nie pobiera ustawien z bazy. Embed jest statycznym HTML -- nie ma dostepu do React Context.
+## Podglad embed w oknie podgladu
 
-**Rozwiazanie**: Zmodyfikowac `generateCustomPlayerCode` tak aby uzywalo aktualnych wartosci z brand settings (juz przekazywanych jako parametry). Problem polega na tym ze branding w dialogu embedu uzywa lokalnych stanow (`brandColor`, `brandIconColor` itd.) -- te sa juz synchronizowane z global settings. Trzeba upewnic sie ze skip_bg_color tez jest przekazywany do generatora kodu embed.
+### Obecny stan
+Dialog embed ma maly statyczny podglad brandingu (miniaturka z nalozonymi kolorami), ale nie pokazuje jak embed bedzie wygladal na prawdziwej stronie -- z kontrolkami, volume sliderem, skip buttonami itp.
 
-### Problem 2: Brak kontroli glosnosci i jakosci w embedzie
-Wygenerowany embed ma tylko przycisk mute (on/off) bez suwaka glosnosci i nie ma selektora jakosci.
+### Zmiana
 
-**Rozwiazanie**: Dodac do generowanego kodu embed:
-- Suwak glosnosci (`<input type="range">`) obok przycisku mute
-- Selector jakosci -- menu z opcjami (480p, 720p, 1080p) ktore zmienia rozmiar renderowania wideo (analogicznie do playera React)
+Dodac przycisk "Podglad embed" obok "Pokaz kod embed" w dolnym pasku dialogu. Po kliknieciu, zamiast kodu zrodlowego, wyswietlic iframe z renderowanym kodem embed w symulowanym kontekscie strony.
 
-### Problem 3: Zabezpieczenie domeny nie dziala
-Obecne sprawdzenie `window.location.hostname` jest czysto klienckie -- latwo je obejsc. Glowny problem: sprawdzenie dziala poprawnie technicznie, ale video URL jest publiczny i mozna go otworzyc bezposrednio.
+#### Szczegoly implementacji
 
-**Rozwiazanie**: Zabezpieczenie po stronie serwera -- dodac edge function ktora generuje tymczasowe signed URL zamiast uzywac publicznego URL. Embed nie bedzie zawieral bezposredniego linka do pliku.
+**Nowy stan**: `previewMode` (boolean) -- przelacza miedzy normalnym widokiem ustawien a podgladem.
 
-Kroki:
-1. Dodac tabele `video_embed_settings` z kolumnami: `video_id`, `allowed_domains` (text[]), `restrict_domain` (boolean)
-2. Utworzyc edge function `get-embed-url` ktora:
-   - Sprawdza referer/origin headera
-   - Jesli domena nie jest dozwolona, zwraca 403
-   - Jesli OK, generuje signed URL (wazny np. 1h) i zwraca go
-3. Embed zamiast bezposredniego `<video src="...">` uzywa fetch do edge function zeby pobrac tymczasowy URL
-4. Zapisywac ustawienia domeny w bazie przy generowaniu embeda
+**Rendering podgladu**:
+- Uzyc `srcDoc` na elemencie `<iframe>` -- wstrzyknac wygenerowany `embedCode` opakowany w minimalne HTML z bialym tlem i centrowanym contentem
+- iframe bedzie mial styl `width:100%; aspect-ratio:16/9; border:1px solid border`
+- Nad iframe bedzie pasek symulujacy przegladarke (szare tlo + fake URL bar) dla realizmu
 
-### Zmiany w plikach
+**Szablon HTML dla iframe srcDoc**:
+```html
+<!DOCTYPE html>
+<html>
+<head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;font-family:sans-serif;}</style></head>
+<body>
+  ${embedCode}
+</body>
+</html>
+```
+
+**Umiejscowienie**: Podglad zastapi zawartosc aktywnego taba (tak jak `showCode` zastepuje ustawienia kodem). Przyciski w dolnym pasku: "Podglad" | "Pokaz kod" | "Kopiuj kod".
+
+#### Zmiany w pliku
 
 | Plik | Akcja |
 |------|-------|
-| `src/components/dashboard/EmbedDialog.tsx` | Edycja -- dodac skip_bg_color do generatora, dodac volume slider i quality selector do kodu embed, zapisywac allowed_domains do bazy |
-| `supabase/functions/get-embed-url/index.ts` | Nowy -- edge function weryfikujaca domene i generujaca signed URL |
-| Migracja SQL | Nowa tabela `video_embed_settings` |
+| `src/components/dashboard/EmbedDialog.tsx` | Edycja -- dodac stan `previewMode`, przycisk w footer, renderowanie iframe z `srcDoc` |
 
-### Szczegoly techniczne
+#### Techniczne szczegoly
 
-**Zmieniony embed code** bedzie zawieral:
-- Volume slider: `<input type="range" min="0" max="1" step="0.05">` z event listenerem zmieniajacym `video.volume`
-- Quality selector: przycisk z menu dropdown (generowany czysto w JS/HTML), opcje wyznaczone na podstawie `videoWidth/videoHeight` wideo
-- Skip buttons z kolorem `skip_bg_color` (przekazanym jako parametr)
+W `EmbedDialog.tsx`:
 
-**Edge function `get-embed-url`**:
-```
-POST /get-embed-url
-Body: { video_id: string }
-Headers: Referer / Origin
+1. Nowy stan: `const [previewMode, setPreviewMode] = useState(false);`
 
-1. Pobierz video_embed_settings dla video_id
-2. Jesli restrict_domain=true, sprawdz Origin/Referer vs allowed_domains
-3. Jesli nie pasuje -> 403
-4. Wygeneruj signed URL z storage (1h TTL)
-5. Zwroc { url: signed_url }
-```
+2. Nowy JSX dla podgladu (wyswietlany gdy `previewMode === true`):
+   - Symulowany pasek przegladarki (szary div z okraglymi "kropkami" i polem URL)
+   - `<iframe sandbox="allow-scripts" srcDoc={...} />` z wygenerowanym embedCode
+   - Iframe ma wylaczony allow-same-origin dla bezpieczenstwa
 
-**Embed code z zabezpieczeniem** -- zamiast statycznego `<video src="URL">`:
-```html
-<script>
-fetch("EDGE_FN_URL/get-embed-url", {
-  method: "POST",
-  headers: {"Content-Type":"application/json", "apikey":"ANON_KEY"},
-  body: JSON.stringify({video_id: "ID"})
-})
-.then(r => r.json())
-.then(d => { document.getElementById("vid").src = d.url; })
-.catch(() => { /* show error */ });
-</script>
-```
+3. Logika przelaczania w TabsContent:
+   - Jesli `previewMode` -> pokaz podglad iframe
+   - Jesli `showCode` -> pokaz kod
+   - W przeciwnym razie -> pokaz ustawienia
 
-**Tabela `video_embed_settings`**:
-```sql
-CREATE TABLE video_embed_settings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  video_id uuid REFERENCES videos(id) ON DELETE CASCADE UNIQUE,
-  restrict_domain boolean DEFAULT false,
-  allowed_domains text[] DEFAULT '{}',
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-```
-RLS: SELECT/INSERT/UPDATE dla authenticated users (wlasciciel wideo).
+4. W dolnym pasku dodac przycisk "Podglad" z ikona `Monitor`:
+   ```
+   <Button onClick={() => { setPreviewMode(!previewMode); setShowCode(false); }}>
+     <Monitor /> Podglad
+   </Button>
+   ```
 
-**Zapis ustawien domeny**: Przy kliknieciu "Kopiuj kod" w EmbedDialog, jesli `domainRestricted=true`, zapisac `allowed_domains` do tabeli `video_embed_settings` i wygenerowac embed code uzywajacy edge function zamiast bezposredniego URL.
+5. Klikniecie "Pokaz kod" wylacza `previewMode` i odwrotnie -- wzajemne wylaczanie.
+
