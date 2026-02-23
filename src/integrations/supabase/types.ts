@@ -153,6 +153,41 @@ export type Database = {
           },
         ]
       }
+      video_embed_settings: {
+        Row: {
+          allowed_domains: string[]
+          created_at: string
+          id: string
+          restrict_domain: boolean
+          updated_at: string
+          video_id: string
+        }
+        Insert: {
+          allowed_domains?: string[]
+          created_at?: string
+          id?: string
+          restrict_domain?: boolean
+          updated_at?: string
+          video_id: string
+        }
+        Update: {
+          allowed_domains?: string[]
+          created_at?: string
+          id?: string
+          restrict_domain?: boolean
+          updated_at?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_embed_settings_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: true
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_views: {
         Row: {
           created_at: string

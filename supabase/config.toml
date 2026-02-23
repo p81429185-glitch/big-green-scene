@@ -1,1 +1,4 @@
 project_id = "ilephbleqlaigsueveaf"
+
+[functions.get-embed-url]
+verify_jwt = false

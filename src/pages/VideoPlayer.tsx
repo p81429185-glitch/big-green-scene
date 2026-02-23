@@ -318,6 +318,7 @@ const VideoPlayer = () => {
         open={embedOpen}
         onOpenChange={setEmbedOpen}
         videoUrl={videoUrl}
+        videoId={video.id}
         thumbnailUrl={video.thumbnail_url}
         transcription={transcription}
       />
