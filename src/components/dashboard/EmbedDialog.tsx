@@ -34,10 +34,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { supabase } from "@/integrations/supabase/client";
+
 interface EmbedDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   videoUrl: string;
+  videoId?: string;
   thumbnailUrl: string | null;
   transcription?: string | null;
 }
@@ -49,9 +52,14 @@ function generateCustomPlayerCode(
   brandProgressColor: string,
   brandLogoUrl: string,
   brandPlayBgColor: string,
+  brandSkipBgColor: string,
   sizeMode: string,
   embedWidth: string,
   embedHeight: string,
+  useSecureUrl: boolean,
+  videoId: string,
+  supabaseUrl: string,
+  anonKey: string,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
@@ -59,6 +67,8 @@ function generateCustomPlayerCode(
   const fill = "fill" + uid;
   const timeEl = "time" + uid;
   const playBtn = "pbtn" + uid;
+  const volSlider = "vol" + uid;
+  const qualMenu = "qual" + uid;
 
   const sizeStyle = sizeMode === "responsive"
     ? "width:100%;max-width:100%;"
@@ -68,14 +78,46 @@ function generateCustomPlayerCode(
     ? `<img src="${brandLogoUrl.trim()}" style="position:absolute;top:12px;right:12px;height:30px;z-index:10;pointer-events:none;" />`
     : "";
 
+  // If secure, video src starts empty and is fetched via edge function
+  const videoSrc = useSecureUrl ? "" : videoUrl;
+  const secureFetchScript = useSecureUrl ? `
+    (function(){
+      fetch("${supabaseUrl}/functions/v1/get-embed-url", {
+        method: "POST",
+        headers: {"Content-Type":"application/json","apikey":"${anonKey}"},
+        body: JSON.stringify({video_id:"${videoId}"})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.url){ document.getElementById("${vid}").src = d.url; }
+        else { document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Ten film nie jest dostępny na tej stronie.</p>'; }
+      })
+      .catch(function(){
+        document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Nie udało się załadować filmu.</p>';
+      });
+    })();` : "";
+
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
-  <video src="${videoUrl}" style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <video src="${videoSrc}" style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <!-- Skip buttons overlay -->
+  <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
+    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/><text x="12" y="16" text-anchor="middle" fill="${brandIconColor}" stroke="none" font-size="8" font-family="sans-serif">15</text></svg>
+    </button>
+  </div>
+  <div style="position:absolute;top:50%;right:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-fwd-${uid}">
+    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.min(v.duration||0,v.currentTime+15);})()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/><text x="12" y="16" text-anchor="middle" fill="${brandIconColor}" stroke="none" font-size="8" font-family="sans-serif">15</text></svg>
+    </button>
+  </div>
+  <!-- Big play button -->
   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:1;transition:opacity .3s;" id="big${playBtn}">
     <div style="width:64px;height:64px;border-radius:50%;background:${brandPlayBgColor};display:flex;align-items:center;justify-content:center;">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="${brandIconColor}"><polygon points="5,3 19,12 5,21"/></svg>
     </div>
   </div>
+  <!-- Control bar -->
   <div style="position:absolute;bottom:0;left:0;right:0;background:${brandColor};padding:6px 12px;display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s;" id="ctrl${uid}">
     <button id="${playBtn}" style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="${brandIconColor}" id="ico${playBtn}"><polygon points="5,3 19,12 5,21"/></svg>
@@ -84,16 +126,28 @@ function generateCustomPlayerCode(
     <div style="flex:1;height:4px;background:rgba(255,255,255,0.3);border-radius:2px;cursor:pointer;position:relative;" id="${prog}">
       <div style="width:0%;height:100%;background:${brandProgressColor};border-radius:2px;" id="${fill}"></div>
     </div>
-    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" onclick="(function(){var v=document.getElementById('${vid}');v.muted=!v.muted;})()">
+    <!-- Volume -->
+    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" id="mute${uid}" onclick="(function(){var v=document.getElementById('${vid}');var s=document.getElementById('${volSlider}');v.muted=!v.muted;s.value=v.muted?0:v.volume;})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     </button>
+    <input type="range" min="0" max="1" step="0.05" value="1" id="${volSlider}" style="width:60px;height:4px;cursor:pointer;accent-color:${brandProgressColor};" oninput="(function(el){var v=document.getElementById('${vid}');v.volume=parseFloat(el.value);v.muted=parseFloat(el.value)===0;})(this)" />
+    <!-- Quality -->
+    <div style="position:relative;">
+      <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;font-size:11px;font-family:sans-serif;" id="qbtn${uid}" onclick="(function(){var m=document.getElementById('${qualMenu}');m.style.display=m.style.display==='none'?'block':'none';})()">HD</button>
+      <div id="${qualMenu}" style="display:none;position:absolute;bottom:30px;right:0;background:rgba(0,0,0,0.9);border-radius:4px;padding:4px 0;min-width:80px;z-index:20;">
+        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.style.maxHeight='none';document.getElementById('qbtn${uid}').textContent='HD';document.getElementById('${qualMenu}').style.display='none';})()">Oryginalna</div>
+        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.style.maxHeight='720px';document.getElementById('qbtn${uid}').textContent='720p';document.getElementById('${qualMenu}').style.display='none';})()">720p</div>
+        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.style.maxHeight='480px';document.getElementById('qbtn${uid}').textContent='480p';document.getElementById('${qualMenu}').style.display='none';})()">480p</div>
+      </div>
+    </div>
+    <!-- Fullscreen -->
     <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" onclick="(function(){var w=document.getElementById('${uid}');if(w.requestFullscreen)w.requestFullscreen();else if(w.webkitRequestFullscreen)w.webkitRequestFullscreen();})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     </button>
   </div>
   <script>
   (function(){
-    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}");
+    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}");
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
     function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
     v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
@@ -101,9 +155,9 @@ function generateCustomPlayerCode(
     v.addEventListener("pause",function(){ico.innerHTML='<polygon points="5,3 19,12 5,21" fill="${brandIconColor}"/>';});
     v.addEventListener("timeupdate",function(){if(v.duration){var p=(v.currentTime/v.duration)*100;fl.style.width=p+"%";tm.textContent=fmt(v.currentTime)+" / "+fmt(v.duration);}});
     bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
-    w.addEventListener("mouseenter",function(){c.style.opacity="1";});
-    w.addEventListener("mouseleave",function(){if(!v.paused)c.style.opacity="0";});
-  })();
+    w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
+    w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
+  })();${secureFetchScript}
   </script>
 </div>`;
 }
@@ -112,6 +166,7 @@ const EmbedDialog = ({
   open,
   onOpenChange,
   videoUrl,
+  videoId,
   thumbnailUrl,
   transcription,
 }: EmbedDialogProps) => {
@@ -141,6 +196,7 @@ const EmbedDialog = ({
   const [brandProgressColor, setBrandProgressColor] = useState("#ffffff");
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const [brandPlayBgColor, setBrandPlayBgColor] = useState("rgba(22,163,74,0.8)");
+  const [brandSkipBgColor, setBrandSkipBgColor] = useState("rgba(0,0,0,0.45)");
   const [brandingOpen, setBrandingOpen] = useState(false);
 
   // Sync from global brand settings when dialog opens
@@ -151,8 +207,12 @@ const EmbedDialog = ({
       setBrandProgressColor(brandSettings.progress_color);
       setBrandLogoUrl(brandSettings.logo_url);
       setBrandPlayBgColor(brandSettings.play_bg_color);
+      setBrandSkipBgColor(brandSettings.skip_bg_color);
     }
   }, [open, brandSettings]);
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
   const embedCode = useMemo(() => {
     let rawCode = "";
@@ -164,9 +224,14 @@ const EmbedDialog = ({
         brandProgressColor,
         brandLogoUrl,
         brandPlayBgColor,
+        brandSkipBgColor,
         sizeMode,
         embedWidth,
         embedHeight,
+        domainRestricted && !!allowedDomain.trim() && !!videoId,
+        videoId || "",
+        supabaseUrl,
+        anonKey,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
@@ -185,32 +250,52 @@ const EmbedDialog = ({
       }
     }
 
-    if (domainRestricted && allowedDomain.trim() && rawCode) {
-      const uid = "embed-" + Math.random().toString(36).slice(2, 10);
-      const escaped = rawCode.replace(/'/g, "\\'").replace(/\n/g, "\\n");
-      return `<div id="${uid}">
-  <script>
-    (function(){
-      var allowed = "${allowedDomain.trim()}";
-      if (window.location.hostname === allowed || window.location.hostname.endsWith("." + allowed)) {
-        document.getElementById("${uid}").innerHTML = '${escaped}';
-      } else {
-        document.getElementById("${uid}").innerHTML = '<p style="color:#666;font-size:14px;">Ten film nie jest dostępny na tej stronie.</p>';
-      }
-    })();
-  </script>
-</div>`;
-    }
-
     return rawCode;
   }, [
-    embedTab, sizeMode, embedWidth, embedHeight, videoUrl, thumbnailUrl,
+    embedTab, sizeMode, embedWidth, embedHeight, videoUrl, thumbnailUrl, videoId,
     popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
     domainRestricted, allowedDomain,
-    brandColor, brandIconColor, brandProgressColor, brandLogoUrl, brandPlayBgColor,
+    brandColor, brandIconColor, brandProgressColor, brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
+    supabaseUrl, anonKey,
   ]);
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
+    // Save domain settings to DB if restricted
+    if (domainRestricted && allowedDomain.trim() && videoId) {
+      try {
+        const { data: existing } = await supabase
+          .from("video_embed_settings" as any)
+          .select("id")
+          .eq("video_id", videoId)
+          .maybeSingle();
+
+        const payload = {
+          video_id: videoId,
+          restrict_domain: true,
+          allowed_domains: [allowedDomain.trim()],
+        };
+
+        if (existing) {
+          await supabase
+            .from("video_embed_settings" as any)
+            .update({ restrict_domain: true, allowed_domains: [allowedDomain.trim()] })
+            .eq("video_id", videoId);
+        } else {
+          await supabase.from("video_embed_settings" as any).insert(payload);
+        }
+      } catch (e) {
+        console.error("Failed to save embed settings", e);
+      }
+    } else if (!domainRestricted && videoId) {
+      // Disable restriction if unchecked
+      try {
+        await supabase
+          .from("video_embed_settings" as any)
+          .update({ restrict_domain: false })
+          .eq("video_id", videoId);
+      } catch {}
+    }
+
     navigator.clipboard.writeText(embedCode);
     toast.success("Kod skopiowany do schowka");
   };
@@ -218,7 +303,6 @@ const EmbedDialog = ({
   // Compute play button bg from brand color when brand color changes
   const handleBrandColorChange = (color: string) => {
     setBrandColor(color);
-    // Convert hex to rgba with 0.8 opacity for play button bg
     const r = parseInt(color.slice(1, 3), 16);
     const g = parseInt(color.slice(3, 5), 16);
     const b = parseInt(color.slice(5, 7), 16);
@@ -301,6 +385,24 @@ const EmbedDialog = ({
               <span className="text-xs text-muted-foreground font-mono">{brandPlayBgColor}</span>
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tło skip 15s</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={brandSkipBgColor.startsWith("rgba") ? "#000000" : brandSkipBgColor}
+                onChange={(e) => {
+                  const c = e.target.value;
+                  const r = parseInt(c.slice(1, 3), 16);
+                  const g = parseInt(c.slice(3, 5), 16);
+                  const b = parseInt(c.slice(5, 7), 16);
+                  setBrandSkipBgColor(`rgba(${r},${g},${b},0.45)`);
+                }}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+              />
+              <span className="text-xs text-muted-foreground font-mono">{brandSkipBgColor}</span>
+            </div>
+          </div>
         </div>
 
         {/* Live preview */}
@@ -321,6 +423,13 @@ const EmbedDialog = ({
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}
+            {/* Skip buttons preview */}
+            <div className="absolute top-1/2 left-[15%] -translate-y-1/2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[8px]" style={{ background: brandSkipBgColor, color: brandIconColor }}>-15</div>
+            </div>
+            <div className="absolute top-1/2 right-[15%] -translate-y-1/2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[8px]" style={{ background: brandSkipBgColor, color: brandIconColor }}>+15</div>
+            </div>
             {/* Big play button overlay */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div
@@ -348,6 +457,10 @@ const EmbedDialog = ({
                 <polygon points="11,5 6,9 2,9 2,15 6,15 11,19" />
                 <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
               </svg>
+              <div className="w-8 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.3)" }}>
+                <div className="h-full rounded-full w-2/3" style={{ background: brandProgressColor }} />
+              </div>
+              <span className="text-[9px]" style={{ color: brandIconColor }}>HD</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={brandIconColor} strokeWidth="2">
                 <polyline points="15,3 21,3 21,9" />
                 <polyline points="9,21 3,21 3,15" />
@@ -515,16 +628,18 @@ const EmbedDialog = ({
             </Label>
           </div>
           {domainRestricted && (
-            <Input
-              value={allowedDomain}
-              onChange={(e) => setAllowedDomain(e.target.value)}
-              placeholder="np. mojastrona.pl"
-              className="h-8 text-sm"
-            />
+            <>
+              <Input
+                value={allowedDomain}
+                onChange={(e) => setAllowedDomain(e.target.value)}
+                placeholder="np. mojastrona.pl"
+                className="h-8 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Embed pobierze wideo przez zabezpieczony serwer — zadziała tylko na podanej domenie.
+              </p>
+            </>
           )}
-          <p className="text-xs text-muted-foreground">
-            Embed będzie działał tylko na podanej domenie (i jej subdomenach).
-          </p>
         </div>
       </CollapsibleContent>
     </Collapsible>
