@@ -65,6 +65,8 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const [videoHeight, setVideoHeight] = useState(0);
     const [selectedQuality, setSelectedQuality] = useState<string>("Auto");
     const [showQualityMenu, setShowQualityMenu] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [volume, setVolume] = useState(1);
 
     const segments = subtitlesSrt ? parseSrt(subtitlesSrt) : [];
 
@@ -166,6 +168,20 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       };
     }, []);
 
+    // Fullscreen listener
+    useEffect(() => {
+      const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+      document.addEventListener("fullscreenchange", onFsChange);
+      return () => document.removeEventListener("fullscreenchange", onFsChange);
+    }, []);
+
+    // Sync volume with video element
+    useEffect(() => {
+      if (videoRef.current) {
+        videoRef.current.volume = muted ? 0 : volume;
+      }
+    }, [volume, muted]);
+
     const progress = duration ? (currentTime / duration) * 100 : 0;
 
     return (
@@ -183,8 +199,8 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           autoPlay={autoPlay}
           muted={muted}
           onTimeUpdate={handleTimeUpdate}
-          className="w-full h-full"
-          style={videoStyle}
+          className="w-full h-full object-contain"
+          style={isFullscreen ? {} : videoStyle}
         />
 
         {/* Logo */}
@@ -283,6 +299,23 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
               {!muted && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
             </svg>
           </button>
+
+          {/* Volume slider */}
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={muted ? 0 : volume}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              setVolume(val);
+              setMuted(val === 0);
+              if (videoRef.current) videoRef.current.volume = val;
+            }}
+            className="w-16 h-1 cursor-pointer"
+            style={{ accentColor: settings.progress_color }}
+          />
 
           {/* Quality */}
           <div className="relative shrink-0">
