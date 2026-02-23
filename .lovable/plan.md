@@ -1,67 +1,67 @@
 
 
-## Naprawa fullscreen i dodanie kontroli glosnosci
+## Poprawa timeline i dodanie przyciskow skip/play
 
-### Problem 1: Fullscreen nie wypelnia ekranu
-Styl `videoStyle` ustawia `maxWidth` i `maxHeight` na podstawie wybranej jakosci (np. 854x480 dla 480p). W trybie pelnoekranowym te limity nadal dzialaja, wiec wideo jest male na srodku czarnego ekranu.
+### Problem 1: Wolna i glitchowa linia czasu
+Obecny progress bar reaguje tylko na `onClick`, co oznacza ze uzytkownik musi klikac w konkretne miejsce. Nie mozna "ciagnac" wskaznika -- brak obslugi `onMouseDown` + `onMouseMove` + `onMouseUp`. Kazde klikniecie powoduje skok, a brak throttlingu powoduje glitche.
 
-### Problem 2: Brak suwaka glosnosci
-Aktualnie jest tylko przycisk mute/unmute (wlacz/wylacz dzwiek). Nie mozna ustawic glosnosci np. na 50%.
+### Problem 2: Brak przyciskow skip 15s i play/pause w widocznym miejscu
+Uzytkownik chce przyciski: cofnij 15s, play/pause, przewin 15s do przodu -- w stylu YouTube/Netflix.
 
 ### Zmiany
 
 **Plik: `src/components/video/BrandedVideoPlayer.tsx`**
 
-1. **Fullscreen fix** -- dodac stan `isFullscreen` i sluchac zdarzenia `fullscreenchange`. W trybie fullscreen nie stosowac `videoStyle` (usunac ograniczenia maxWidth/maxHeight):
-   - Dodac `const [isFullscreen, setIsFullscreen] = useState(false);`
-   - Dodac `useEffect` nasluchujacy `fullscreenchange` na `containerRef`
-   - Zmienic styl video: `style={isFullscreen ? {} : videoStyle}`
-   - Dodac klase `object-contain` do video, zeby proporcje sie zachowaly
+1. **Plynna linia czasu (drag seeking)**
+   - Zamiast `onClick` na progress bar, uzyc `onMouseDown` + globalny `onMouseMove` / `onMouseUp`
+   - Dodac stan `isSeeking` -- podczas przeciagania aktualizowac pozycje wizualnie (bez ciaglego seekowania video, zeby nie lagowalo)
+   - Na `mouseUp` ustawic `video.currentTime` na docelowa pozycje
+   - Powiekszyc obszar klikalny progress bara (z h-1 na h-2, z wiekszym padding)
+   - Dodac kolko (thumb) na aktualnej pozycji widoczne przy hover/drag
 
-2. **Suwak glosnosci** -- dodac stan `volume` (0-1) i suwak obok przycisku mute:
-   - Dodac `const [volume, setVolume] = useState(1);`
-   - Synchronizowac `videoRef.current.volume` ze stanem
-   - Dodac element `<input type="range">` miedzy przyciskiem mute a jakoscia
-   - Styl suwaka dopasowany do paska kontrolnego (maly, kolorystyka brand kit)
-   - Klikniecie ikony mute wycisza/przywraca poprzednia gloscnosc
+2. **Przyciski skip 15s wstecz / play / skip 15s do przodu**
+   - Dodac 3 przyciski w control bar (przed czasem):
+     - Cofnij 15s (ikona rotate-ccw)
+     - Play/Pause (obecny przycisk)
+     - Przewin 15s do przodu (ikona rotate-cw)
+   - Funkcje `skip(-15)` i `skip(+15)` zmieniajace `video.currentTime`
 
 ### Szczegoly techniczne
 
-Fullscreen -- nowy useEffect:
+Nowa logika drag seek:
+```text
+onMouseDown na progress bar:
+  -> ustaw isSeeking = true
+  -> oblicz pozycje i ustaw seekPosition
+  
+onMouseMove (globalny, tylko gdy isSeeking):
+  -> przelicz pozycje na podstawie rect progress bara
+  -> aktualizuj seekPosition (wizualnie)
+  
+onMouseUp (globalny):
+  -> ustaw video.currentTime = seekPosition * duration
+  -> ustaw isSeeking = false
+```
+
+Nowe stany:
+- `isSeeking: boolean` -- czy uzytkownik przeciaga
+- `seekPosition: number` -- pozycja 0-1 podczas przeciagania
+
+Przyciski skip:
+```text
+[<<15] [Play/Pause] [15>>]  00:00 / 00:00  [===progress===]  vol  quality  fullscreen
+```
+
+Funkcja skip:
 ```typescript
-useEffect(() => {
-  const onFsChange = () => {
-    setIsFullscreen(!!document.fullscreenElement);
-  };
-  document.addEventListener("fullscreenchange", onFsChange);
-  return () => document.removeEventListener("fullscreenchange", onFsChange);
+const skip = useCallback((seconds: number) => {
+  const v = videoRef.current;
+  if (!v) return;
+  v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + seconds));
 }, []);
 ```
 
-Suwak glosnosci -- nowy element w control bar (miedzy przyciskiem mute a quality):
-```typescript
-<input
-  type="range"
-  min="0"
-  max="1"
-  step="0.05"
-  value={muted ? 0 : volume}
-  onChange={(e) => {
-    const val = parseFloat(e.target.value);
-    setVolume(val);
-    setMuted(val === 0);
-    if (videoRef.current) videoRef.current.volume = val;
-  }}
-  className="w-16 h-1 accent-current cursor-pointer"
-  style={{ accentColor: settings.progress_color }}
-/>
-```
-
-Synchronizacja volume z video:
-```typescript
-useEffect(() => {
-  if (videoRef.current) {
-    videoRef.current.volume = muted ? 0 : volume;
-  }
-}, [volume, muted]);
-```
+Progress bar z thumbem:
+- Wysokosc zwiekszona do h-2 z py-2 padding dla latwiejszego klikania
+- Kolko (thumb) 12x12px na aktualnej pozycji, widoczne na hover i podczas drag
+- Podczas drag: progress bar pokazuje `seekPosition` zamiast `currentTime`
