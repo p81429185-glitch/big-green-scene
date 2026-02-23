@@ -252,19 +252,55 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           />
         )}
 
-        {/* Big play button */}
-        {!playing && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ background: settings.play_bg_color }}
-            >
+        {/* Center overlay: skip back / play-pause / skip forward */}
+        <div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 gap-8"
+          style={{ opacity: showControls || !playing ? 1 : 0, transition: "opacity 0.3s" }}
+        >
+          {/* Skip back 15s */}
+          <button
+            className="pointer-events-auto w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+            onClick={(e) => { e.stopPropagation(); skip(-15); }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
+            </svg>
+          </button>
+
+          {/* Play/Pause */}
+          <button
+            className="pointer-events-auto w-16 h-16 rounded-full flex items-center justify-center"
+            style={{ background: settings.play_bg_color }}
+            onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+          >
+            {playing ? (
+              <svg width="28" height="28" viewBox="0 0 24 24" fill={settings.icon_color}>
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            ) : (
               <svg width="28" height="28" viewBox="0 0 24 24" fill={settings.icon_color}>
                 <polygon points="5,3 19,12 5,21" />
               </svg>
-            </div>
-          </div>
-        )}
+            )}
+          </button>
+
+          {/* Skip forward 15s */}
+          <button
+            className="pointer-events-auto w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+            onClick={(e) => { e.stopPropagation(); skip(15); }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
+            </svg>
+          </button>
+        </div>
 
         {/* Subtitle overlay */}
         {currentSubtitle && (
