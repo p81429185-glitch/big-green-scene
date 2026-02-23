@@ -1,27 +1,21 @@
 
 
-## Zwiększenie limitu rozmiaru plików w storage
+## Utworzenie konta admina
 
-### Problem
-Bucket `videos` ma domyślny limit rozmiaru pliku (~50MB). Chunked upload (tus) działa poprawnie, ale sam bucket odrzuca pliki większe niż limit -- stąd błąd 413 "Maximum size exceeded".
+### Co zostanie zrobione
+Wywołanie istniejącej funkcji backendowej `create-admin`, która:
+- Utworzy konto z emailem `michalrucznaj@gmail.com` i hasłem `Admin123`
+- Potwierdzi email automatycznie (bez potrzeby weryfikacji)
+- Nada rolę `admin` w tabeli `user_roles`
 
-### Rozwiązanie
-Jedna migracja SQL zwiększająca `file_size_limit` na buckecie `videos` do 5GB (5368709120 bajtów).
+### Szczegoly techniczne
+Funkcja `create-admin` jest juz zaimplementowana w `supabase/functions/create-admin/index.ts` i zawiera te dane logowania na stale. Wystarczy ja wywolac (deploy + curl).
 
-```sql
-UPDATE storage.buckets
-SET file_size_limit = 5368709120
-WHERE id = 'videos';
-```
+| Krok | Opis |
+|------|------|
+| 1 | Deploy funkcji `create-admin` (jesli nie jest jeszcze wdrozona) |
+| 2 | Wywolanie funkcji przez HTTP |
+| 3 | Weryfikacja ze konto dziala -- logowanie na `/auth` |
 
-### Szczegóły techniczne
-- `file_size_limit` ustawiony na `5368709120` (5 * 1024 * 1024 * 1024 = 5GB)
-- Chunk size w tus pozostaje 6MB -- to jest rozmiar pojedynczego kawałka, nie całego pliku
-- Żadne zmiany w kodzie frontendu nie są potrzebne
-
-### Modyfikowane pliki
-
-| Plik | Zmiana |
-|------|--------|
-| Migracja SQL | `UPDATE storage.buckets SET file_size_limit = 5368709120 WHERE id = 'videos'` |
+Zadne pliki nie wymagaja zmian.
 
