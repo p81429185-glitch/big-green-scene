@@ -254,16 +254,16 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
 
         {/* Center overlay: skip back / play-pause / skip forward */}
         <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 gap-8"
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 gap-10"
           style={{ opacity: showControls || !playing ? 1 : 0, transition: "opacity 0.3s" }}
         >
           {/* Skip back 15s */}
           <button
-            className="pointer-events-auto w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.5)" }}
+            className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-110"
+            style={{ background: "rgba(0,0,0,0.45)" }}
             onClick={(e) => { e.stopPropagation(); skip(-15); }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="1 4 1 10 7 10" />
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
               <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
@@ -272,7 +272,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
 
           {/* Play/Pause */}
           <button
-            className="pointer-events-auto w-16 h-16 rounded-full flex items-center justify-center"
+            className="pointer-events-auto w-16 h-16 rounded-full flex items-center justify-center backdrop-blur-sm shadow-lg transition-transform hover:scale-110"
             style={{ background: settings.play_bg_color }}
             onClick={(e) => { e.stopPropagation(); togglePlay(); }}
           >
@@ -290,11 +290,11 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
 
           {/* Skip forward 15s */}
           <button
-            className="pointer-events-auto w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.5)" }}
+            className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-110"
+            style={{ background: "rgba(0,0,0,0.45)" }}
             onClick={(e) => { e.stopPropagation(); skip(15); }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="23 4 23 10 17 10" />
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
@@ -327,38 +327,6 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Skip back 15s */}
-          <button onClick={() => skip(-15)} className="shrink-0" style={{ color: settings.icon_color }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="1 4 1 10 7 10" />
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-              <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
-            </svg>
-          </button>
-
-          {/* Play/Pause */}
-          <button onClick={togglePlay} className="shrink-0" style={{ color: settings.icon_color }}>
-            {playing ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={settings.icon_color}>
-                <rect x="6" y="4" width="4" height="16" />
-                <rect x="14" y="4" width="4" height="16" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={settings.icon_color}>
-                <polygon points="5,3 19,12 5,21" />
-              </svg>
-            )}
-          </button>
-
-          {/* Skip forward 15s */}
-          <button onClick={() => skip(15)} className="shrink-0" style={{ color: settings.icon_color }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-              <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
-            </svg>
-          </button>
-
           {/* Time */}
           <span className="text-xs min-w-[80px] shrink-0" style={{ color: settings.icon_color }}>
             {fmt(isSeeking ? seekPosition * duration : currentTime)} / {fmt(duration)}
