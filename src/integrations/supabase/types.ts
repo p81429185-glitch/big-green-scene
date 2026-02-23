@@ -150,6 +150,41 @@ export type Database = {
           },
         ]
       }
+      video_views: {
+        Row: {
+          created_at: string
+          id: string
+          video_duration_seconds: number
+          video_id: string
+          viewer_session: string
+          watch_duration_seconds: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          video_duration_seconds?: number
+          video_id: string
+          viewer_session: string
+          watch_duration_seconds?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          video_duration_seconds?: number
+          video_id?: string
+          viewer_session?: string
+          watch_duration_seconds?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_views_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       videos: {
         Row: {
           created_at: string
