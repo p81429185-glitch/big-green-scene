@@ -67,6 +67,9 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const [showQualityMenu, setShowQualityMenu] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [volume, setVolume] = useState(1);
+    const [isSeeking, setIsSeeking] = useState(false);
+    const [seekPosition, setSeekPosition] = useState(0);
+    const progressBarRef = useRef<HTMLDivElement>(null);
 
     const segments = subtitlesSrt ? parseSrt(subtitlesSrt) : [];
 
@@ -108,6 +111,12 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       }
     }, []);
 
+    const skip = useCallback((seconds: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + seconds));
+    }, []);
+
     const handleTimeUpdate = useCallback(() => {
       const v = videoRef.current;
       if (!v) return;
@@ -122,16 +131,42 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       }
     }, [segments, onTimeUpdate]);
 
-    const handleSeek = useCallback(
+    const calcSeekPosition = useCallback((clientX: number) => {
+      const bar = progressBarRef.current;
+      if (!bar) return 0;
+      const rect = bar.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    }, []);
+
+    const handleProgressMouseDown = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        const v = videoRef.current;
-        if (!v || !duration) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const ratio = (e.clientX - rect.left) / rect.width;
-        v.currentTime = ratio * duration;
+        e.preventDefault();
+        const pos = calcSeekPosition(e.clientX);
+        setIsSeeking(true);
+        setSeekPosition(pos);
       },
-      [duration]
+      [calcSeekPosition]
     );
+
+    useEffect(() => {
+      if (!isSeeking) return;
+      const onMove = (e: MouseEvent) => {
+        setSeekPosition(calcSeekPosition(e.clientX));
+      };
+      const onUp = (e: MouseEvent) => {
+        const pos = calcSeekPosition(e.clientX);
+        if (videoRef.current && duration) {
+          videoRef.current.currentTime = pos * duration;
+        }
+        setIsSeeking(false);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      return () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+    }, [isSeeking, duration, calcSeekPosition]);
 
     const toggleFullscreen = useCallback(() => {
       const el = containerRef.current;
@@ -182,7 +217,9 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       }
     }, [volume, muted]);
 
-    const progress = duration ? (currentTime / duration) * 100 : 0;
+    const displayProgress = isSeeking
+      ? seekPosition * 100
+      : duration ? (currentTime / duration) * 100 : 0;
 
     return (
       <div
@@ -254,6 +291,15 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Skip back 15s */}
+          <button onClick={() => skip(-15)} className="shrink-0" style={{ color: settings.icon_color }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
+            </svg>
+          </button>
+
           {/* Play/Pause */}
           <button onClick={togglePlay} className="shrink-0" style={{ color: settings.icon_color }}>
             {playing ? (
@@ -268,21 +314,41 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
             )}
           </button>
 
+          {/* Skip forward 15s */}
+          <button onClick={() => skip(15)} className="shrink-0" style={{ color: settings.icon_color }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              <text x="12" y="16" textAnchor="middle" fill={settings.icon_color} stroke="none" fontSize="7" fontWeight="bold">15</text>
+            </svg>
+          </button>
+
           {/* Time */}
           <span className="text-xs min-w-[80px] shrink-0" style={{ color: settings.icon_color }}>
-            {fmt(currentTime)} / {fmt(duration)}
+            {fmt(isSeeking ? seekPosition * duration : currentTime)} / {fmt(duration)}
           </span>
 
-          {/* Progress bar */}
+          {/* Progress bar with drag */}
           <div
-            className="flex-1 h-1 rounded-full cursor-pointer relative"
-            style={{ background: "rgba(255,255,255,0.3)" }}
-            onClick={handleSeek}
+            ref={progressBarRef}
+            className="flex-1 h-2 rounded-full cursor-pointer relative group/progress py-2 flex items-center"
+            onMouseDown={handleProgressMouseDown}
           >
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${progress}%`, background: settings.progress_color }}
-            />
+            <div className="w-full h-1.5 rounded-full relative" style={{ background: "rgba(255,255,255,0.3)" }}>
+              <div
+                className="h-full rounded-full relative"
+                style={{ width: `${displayProgress}%`, background: settings.progress_color }}
+              >
+                {/* Thumb */}
+                <div
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity"
+                  style={{
+                    background: settings.progress_color,
+                    opacity: isSeeking ? 1 : undefined,
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Mute */}
