@@ -1,67 +1,58 @@
 
 
-## Poprawa timeline i dodanie przyciskow skip/play
+## Przyciski skip 15s obok duzego Play na srodku ekranu
 
-### Problem 1: Wolna i glitchowa linia czasu
-Obecny progress bar reaguje tylko na `onClick`, co oznacza ze uzytkownik musi klikac w konkretne miejsce. Nie mozna "ciagnac" wskaznika -- brak obslugi `onMouseDown` + `onMouseMove` + `onMouseUp`. Kazde klikniecie powoduje skok, a brak throttlingu powoduje glitche.
+### Obecny stan
+Duzy przycisk Play (overlay na srodku) pojawia sie gdy wideo jest zapauzowane -- jest to pojedyncze kolko z ikona Play. Przyciski skip 15s sa tylko w dolnym pasku kontrolnym.
 
-### Problem 2: Brak przyciskow skip 15s i play/pause w widocznym miejscu
-Uzytkownik chce przyciski: cofnij 15s, play/pause, przewin 15s do przodu -- w stylu YouTube/Netflix.
-
-### Zmiany
+### Zmiana
 
 **Plik: `src/components/video/BrandedVideoPlayer.tsx`**
 
-1. **Plynna linia czasu (drag seeking)**
-   - Zamiast `onClick` na progress bar, uzyc `onMouseDown` + globalny `onMouseMove` / `onMouseUp`
-   - Dodac stan `isSeeking` -- podczas przeciagania aktualizowac pozycje wizualnie (bez ciaglego seekowania video, zeby nie lagowalo)
-   - Na `mouseUp` ustawic `video.currentTime` na docelowa pozycje
-   - Powiekszyc obszar klikalny progress bara (z h-1 na h-2, z wiekszym padding)
-   - Dodac kolko (thumb) na aktualnej pozycji widoczne przy hover/drag
+Zmodyfikowac sekcje "Big play button" (linie 255-267) tak, aby zamiast samego przycisku Play, wyswietlac 3 elementy obok siebie:
 
-2. **Przyciski skip 15s wstecz / play / skip 15s do przodu**
-   - Dodac 3 przyciski w control bar (przed czasem):
-     - Cofnij 15s (ikona rotate-ccw)
-     - Play/Pause (obecny przycisk)
-     - Przewin 15s do przodu (ikona rotate-cw)
-   - Funkcje `skip(-15)` i `skip(+15)` zmieniajace `video.currentTime`
-
-### Szczegoly techniczne
-
-Nowa logika drag seek:
 ```text
-onMouseDown na progress bar:
-  -> ustaw isSeeking = true
-  -> oblicz pozycje i ustaw seekPosition
-  
-onMouseMove (globalny, tylko gdy isSeeking):
-  -> przelicz pozycje na podstawie rect progress bara
-  -> aktualizuj seekPosition (wizualnie)
-  
-onMouseUp (globalny):
-  -> ustaw video.currentTime = seekPosition * duration
-  -> ustaw isSeeking = false
+[ <<15 ]   [ PLAY ]   [ 15>> ]
 ```
 
-Nowe stany:
-- `isSeeking: boolean` -- czy uzytkownik przeciaga
-- `seekPosition: number` -- pozycja 0-1 podczas przeciagania
+Szczegoly:
+- Kontener uzywa `flex items-center gap-6` (lub gap-8) zeby przyciski mialy odstep
+- Przycisk Play -- obecne kolko z ikona, bez zmian (16x16 / w-16 h-16)
+- Przyciski skip -- mniejsze kolka (np. w-10 h-10) z polprzezroczystym tlem (`rgba(0,0,0,0.5)`), z ikonami strzalek 15s (takie same SVG jak w control bar, tylko wieksze ~20x20)
+- Przyciski musza miec `pointer-events-auto` (kontener nadrzedny ma `pointer-events-none` zeby klikniecie poza przyciskami przechodzilo do video)
+- Klikniecie skip wywoluje istniejaca funkcje `skip(-15)` / `skip(+15)` z `e.stopPropagation()` zeby nie triggerowalo togglePlay
+- Przyciski sa widoczne takze podczas odtwarzania gdy kontrolki sa widoczne (hover), nie tylko na pauzie
 
-Przyciski skip:
-```text
-[<<15] [Play/Pause] [15>>]  00:00 / 00:00  [===progress===]  vol  quality  fullscreen
+### Techniczne
+
+Nowy JSX dla overlay (zastepuje linie 255-267):
+
+```
+<div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+     style={{ opacity: showControls || !playing ? 1 : 0, transition: "opacity 0.3s" }}>
+
+  <!-- Skip back 15s -->
+  <button pointer-events-auto w-10 h-10 rounded-full bg-black/50
+          onClick={skip(-15)} stopPropagation>
+    [ikona 15s wstecz, 20x20]
+  </button>
+
+  <!-- Play/Pause (duzy) -->
+  <button pointer-events-auto w-16 h-16 rounded-full bg play_bg_color
+          onClick={togglePlay} stopPropagation>
+    [ikona play lub pause]
+  </button>
+
+  <!-- Skip forward 15s -->
+  <button pointer-events-auto w-10 h-10 rounded-full bg-black/50
+          onClick={skip(15)} stopPropagation>
+    [ikona 15s do przodu, 20x20]
+  </button>
+</div>
 ```
 
-Funkcja skip:
-```typescript
-const skip = useCallback((seconds: number) => {
-  const v = videoRef.current;
-  if (!v) return;
-  v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + seconds));
-}, []);
-```
-
-Progress bar z thumbem:
-- Wysokosc zwiekszona do h-2 z py-2 padding dla latwiejszego klikania
-- Kolko (thumb) 12x12px na aktualnej pozycji, widoczne na hover i podczas drag
-- Podczas drag: progress bar pokazuje `seekPosition` zamiast `currentTime`
+Kluczowe punkty:
+- Overlay jest widoczny rowniez podczas odtwarzania (przy hover), nie tylko na pauzie
+- Kazdy przycisk ma `pointer-events-auto` i `e.stopPropagation()` zeby nie konfliktowal z `onClick={togglePlay}` na kontenerze
+- Ikona w duzym przycisku zmienia sie miedzy Play a Pause w zaleznosci od stanu `playing`
+- Przyciski skip w dolnym control bar pozostaja bez zmian
