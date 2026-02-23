@@ -23,6 +23,13 @@ export interface FolderItem {
   parent_id: string | null;
 }
 
+function sanitizeFileName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9_\-.]/g, '_')
+    .replace(/_+/g, '_')
+    .substring(0, 100);
+}
+
 export function useVideoStore() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
@@ -150,7 +157,7 @@ export function useVideoStore() {
       folderId: string | null,
       onProgress?: (pct: number) => void
     ) => {
-      const storagePath = `${crypto.randomUUID()}_${file.name}`;
+      const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
 
       // Strip metadata (GPS, device info) before upload
       const cleanFile = await stripVideoMetadata(file);
