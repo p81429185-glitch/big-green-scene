@@ -179,6 +179,7 @@ const EmbedDialog = ({
   const [useOembed, setUseOembed] = useState(false);
   const [injectSeo, setInjectSeo] = useState(true);
   const [showCode, setShowCode] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [allowedDomain, setAllowedDomain] = useState("");
   const [domainRestricted, setDomainRestricted] = useState(false);
@@ -716,7 +717,27 @@ const EmbedDialog = ({
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <TabsContent value="inline" className="mt-0 space-y-4">
-              {showCode ? (
+              {previewMode ? (
+                <div className="rounded-lg overflow-hidden border border-border">
+                  <div className="bg-muted px-3 py-2 flex items-center gap-2 border-b border-border">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-400" />
+                      <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                      <div className="w-3 h-3 rounded-full bg-green-400" />
+                    </div>
+                    <div className="bg-background px-3 py-1 rounded text-xs text-muted-foreground flex-1 truncate">
+                      https://your-site.com/page
+                    </div>
+                  </div>
+                  <iframe
+                    sandbox="allow-scripts"
+                    srcDoc={`<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;font-family:sans-serif;padding:20px;box-sizing:border-box;}body>div{width:100%;max-width:800px;}</style></head><body>${embedCode}</body></html>`}
+                    className="w-full border-none"
+                    style={{ aspectRatio: "16/9", minHeight: "300px" }}
+                    title="Podgląd embed"
+                  />
+                </div>
+              ) : showCode ? (
                 <div className="bg-muted rounded-md p-3">
                   <code className="text-xs break-all whitespace-pre-wrap select-all">
                     {embedCode}
@@ -856,19 +877,30 @@ const EmbedDialog = ({
         </Tabs>
 
         <div className="border-t border-border px-6 py-3 flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowCode((prev) => !prev)}
-            className="text-muted-foreground"
-          >
-            {showCode ? (
-              <EyeOff className="h-4 w-4 mr-1.5" />
-            ) : (
-              <Eye className="h-4 w-4 mr-1.5" />
-            )}
-            {showCode ? "Ukryj kod embed" : "Pokaż kod embed"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={previewMode ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => { setPreviewMode(!previewMode); setShowCode(false); }}
+              className="text-muted-foreground"
+            >
+              <Monitor className="h-4 w-4 mr-1.5" />
+              Podgląd
+            </Button>
+            <Button
+              variant={showCode ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => { setShowCode(!showCode); setPreviewMode(false); }}
+              className="text-muted-foreground"
+            >
+              {showCode ? (
+                <EyeOff className="h-4 w-4 mr-1.5" />
+              ) : (
+                <Eye className="h-4 w-4 mr-1.5" />
+              )}
+              {showCode ? "Ukryj kod" : "Pokaż kod"}
+            </Button>
+          </div>
           <Button size="sm" onClick={handleCopy}>
             <Code className="h-4 w-4 mr-1.5" />
             Kopiuj kod
