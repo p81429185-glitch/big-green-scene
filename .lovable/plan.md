@@ -1,38 +1,24 @@
 
 
-## Naprawa uploadu plików ze spacjami i polskimi znakami
+## Naprawa uploadu duzych plikow (>1GB)
 
 ### Problem
-Nazwa pliku `VSL OCZY PEŁNY.mp4` zawiera spacje i polskie znaki (Ł, Ó), które są niedozwolone w kluczach storage. Upload kończy się błędem 400.
+Funkcja `stripVideoMetadata()` laduje caly plik do pamieci RAM przegladarki (`file.arrayBuffer()`). Przy pliku 1.89 GB przeglazarka zamraza sie lub crashuje -- upload nigdy sie nie rozpoczyna.
 
-### Rozwiązanie
-Dodanie funkcji sanityzacji nazwy pliku, która zamieni niedozwolone znaki na podkreślniki przed uploadem.
+### Rozwiazanie
+Pominac strip metadata dla plikow wiekszych niz 500 MB. Dla tak duzych plikow ryzyko wycieku metadanych (GPS, info o urzadzeniu) jest minimalne w porownaniu z brakiem mozliwosci uploadu.
 
 ### Zmiany
 
-**Plik: `src/hooks/useVideoStore.ts`**
-- Dodanie funkcji `sanitizeFileName()` która:
-  - Zamienia wszystkie znaki niealfanumeryczne (spacje, polskie litery, symbole) na podkreślniki `_`
-  - Usuwa podwójne podkreślniki
-  - Obcina nazwę do max 100 znaków
-- Zmiana linii generującej `storagePath`:
+**Plik: `src/lib/stripVideoMetadata.ts`**
+- Na poczatku funkcji `stripVideoMetadata()` dodac warunek:
   ```
-  // Przed:
-  const storagePath = `${crypto.randomUUID()}_${file.name}`;
-  // Po:
-  const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
+  if (file.size > 500 * 1024 * 1024) return file; // >500MB - skip to avoid OOM
   ```
+- Jesli plik jest mniejszy niz 500 MB, dzialanie pozostaje bez zmian
 
-Oryginalna nazwa pliku (`file.name`) nadal będzie zapisywana w bazie danych w kolumnie `file_name` i wyświetlana użytkownikowi -- zmiana dotyczy tylko klucza w storage.
+### Wplysk
+- Pliki do 500 MB -- metadata jest usuwana jak dotychczas
+- Pliki powyzej 500 MB -- uploadowane bez strippingu, co pozwala na poprawny upload duzych plikow przez TUS protocol
+- Zadnych zmian w UI ani w pozostalych plikach
 
-### Szczegoly techniczne
-
-Funkcja sanityzacji:
-```javascript
-function sanitizeFileName(name: string): string {
-  return name
-    .replace(/[^a-zA-Z0-9_\-.]/g, '_')
-    .replace(/_+/g, '_')
-    .substring(0, 100);
-}
-```
