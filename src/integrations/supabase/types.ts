@@ -24,6 +24,7 @@ export type Database = {
           play_bg_color: string
           player_color: string
           progress_color: string
+          skip_bg_color: string
           updated_at: string
           user_id: string | null
         }
@@ -36,6 +37,7 @@ export type Database = {
           play_bg_color?: string
           player_color?: string
           progress_color?: string
+          skip_bg_color?: string
           updated_at?: string
           user_id?: string | null
         }
@@ -48,6 +50,7 @@ export type Database = {
           play_bg_color?: string
           player_color?: string
           progress_color?: string
+          skip_bg_color?: string
           updated_at?: string
           user_id?: string | null
         }

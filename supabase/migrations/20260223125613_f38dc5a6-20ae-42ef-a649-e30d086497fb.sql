@@ -1,0 +1,1 @@
+ALTER TABLE brand_settings ADD COLUMN skip_bg_color text NOT NULL DEFAULT 'rgba(0,0,0,0.45)';

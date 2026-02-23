@@ -15,6 +15,7 @@ const COLOR_FIELDS = [
   { key: "icon_color" as const, label: "Icon Color", desc: "Kolor ikon i przycisków" },
   { key: "progress_color" as const, label: "Progress Color", desc: "Kolor paska postępu" },
   { key: "play_bg_color" as const, label: "Play BG Color", desc: "Tło przycisku play" },
+  { key: "skip_bg_color" as const, label: "Skip BG Color", desc: "Tło przycisków skip 15s" },
 ];
 
 const BrandKitView = () => {
@@ -56,6 +57,11 @@ const BrandKitView = () => {
       const g = parseInt(value.slice(3, 5), 16);
       const b = parseInt(value.slice(5, 7), 16);
       updateSetting(key, `rgba(${r},${g},${b},0.8)`);
+    } else if (key === "skip_bg_color") {
+      const r = parseInt(value.slice(1, 3), 16);
+      const g = parseInt(value.slice(3, 5), 16);
+      const b = parseInt(value.slice(5, 7), 16);
+      updateSetting(key, `rgba(${r},${g},${b},0.45)`);
     } else {
       updateSetting(key, value);
     }

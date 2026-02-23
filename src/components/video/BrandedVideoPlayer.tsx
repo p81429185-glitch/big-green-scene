@@ -308,7 +308,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           {/* Skip back 15s */}
           <button
             className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-110"
-            style={{ background: "rgba(0,0,0,0.45)" }}
+            style={{ background: settings.skip_bg_color }}
             onClick={(e) => { e.stopPropagation(); skip(-15); }}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -339,7 +339,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           {/* Skip forward 15s */}
           <button
             className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-110"
-            style={{ background: "rgba(0,0,0,0.45)" }}
+            style={{ background: settings.skip_bg_color }}
             onClick={(e) => { e.stopPropagation(); skip(15); }}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={settings.icon_color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -13,6 +13,7 @@ const COLOR_FIELDS = [
   { key: "icon_color" as const, label: "Ikony" },
   { key: "progress_color" as const, label: "Postęp" },
   { key: "play_bg_color" as const, label: "Tło play" },
+  { key: "skip_bg_color" as const, label: "Tło skip 15s" },
 ] as const;
 
 const VideoCustomizeTab = () => {
@@ -50,6 +51,11 @@ const VideoCustomizeTab = () => {
       const g = parseInt(value.slice(3, 5), 16);
       const b = parseInt(value.slice(5, 7), 16);
       updateSetting(key, `rgba(${r},${g},${b},0.8)`);
+    } else if (key === "skip_bg_color") {
+      const r = parseInt(value.slice(1, 3), 16);
+      const g = parseInt(value.slice(3, 5), 16);
+      const b = parseInt(value.slice(5, 7), 16);
+      updateSetting(key, `rgba(${r},${g},${b},0.45)`);
     } else {
       updateSetting(key, value);
     }
