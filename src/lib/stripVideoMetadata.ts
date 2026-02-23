@@ -86,6 +86,9 @@ function filterContainerAtom(buffer: ArrayBuffer, start: number, end: number): U
 }
 
 export async function stripVideoMetadata(file: File): Promise<File> {
+  // Skip stripping for large files to avoid browser OOM crash
+  if (file.size > 500 * 1024 * 1024) return file;
+
   const type = file.type.toLowerCase();
   const name = file.name.toLowerCase();
   
