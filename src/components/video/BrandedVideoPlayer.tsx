@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SrtSegment {
   id: number;
@@ -40,6 +41,7 @@ interface BrandedVideoPlayerProps {
   poster?: string;
   subtitlesSrt?: string | null;
   autoPlay?: boolean;
+  videoId?: string;
   onTimeUpdate?: (time: number) => void;
 }
 
@@ -49,7 +51,7 @@ export interface BrandedVideoPlayerHandle {
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, onTimeUpdate }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
@@ -210,7 +212,53 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       return () => document.removeEventListener("fullscreenchange", onFsChange);
     }, []);
 
-    // Sync volume with video element
+    // Watch time tracking
+    const watchTimeRef = useRef(0);
+    const viewerSessionRef = useRef<string>("");
+
+    useEffect(() => {
+      if (!videoId) return;
+      let session = localStorage.getItem("viewer_session");
+      if (!session) {
+        session = crypto.randomUUID();
+        localStorage.setItem("viewer_session", session);
+      }
+      viewerSessionRef.current = session;
+    }, [videoId]);
+
+    useEffect(() => {
+      if (!videoId || !viewerSessionRef.current) return;
+
+      const reportWatch = async () => {
+        const watchSec = Math.floor(watchTimeRef.current);
+        if (watchSec <= 0) return;
+        const durSec = Math.floor(duration);
+        await supabase.from("video_views").upsert(
+          {
+            video_id: videoId,
+            viewer_session: viewerSessionRef.current,
+            watch_duration_seconds: watchSec,
+            video_duration_seconds: durSec || 0,
+          },
+          { onConflict: "video_id,viewer_session" }
+        );
+      };
+
+      const interval = setInterval(reportWatch, 30000);
+      return () => {
+        clearInterval(interval);
+        reportWatch(); // report on unmount
+      };
+    }, [videoId, duration]);
+
+    // Track accumulated watch time
+    useEffect(() => {
+      if (!playing || !videoId) return;
+      const tick = setInterval(() => {
+        watchTimeRef.current += 1;
+      }, 1000);
+      return () => clearInterval(tick);
+    }, [playing, videoId]);
     useEffect(() => {
       if (videoRef.current) {
         videoRef.current.volume = muted ? 0 : volume;

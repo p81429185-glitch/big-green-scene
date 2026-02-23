@@ -17,6 +17,8 @@ import { Separator } from "@/components/ui/separator";
 import EmbedDialog from "@/components/dashboard/EmbedDialog";
 import ChaptersTab from "@/components/video/ChaptersTab";
 import TranscriptionTab from "@/components/video/TranscriptionTab";
+import VideoCustomizeTab from "@/components/video/VideoCustomizeTab";
+import VideoAnalyticsTab from "@/components/video/VideoAnalyticsTab";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,11 +47,13 @@ function formatSize(bytes: number) {
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
-const actionTabs = [
-  { icon: Pencil, label: "Edytuj" },
-  { icon: Settings, label: "Dostosuj" },
-  { icon: BarChart3, label: "Analityka" },
-  { icon: Scissors, label: "Klipy" },
+type ActionTabId = "edytuj" | "dostosuj" | "analityka" | "klipy";
+
+const actionTabs: { icon: typeof Pencil; label: string; id: ActionTabId }[] = [
+  { icon: Pencil, label: "Edytuj", id: "edytuj" },
+  { icon: Settings, label: "Dostosuj", id: "dostosuj" },
+  { icon: BarChart3, label: "Analityka", id: "analityka" },
+  { icon: Scissors, label: "Klipy", id: "klipy" },
 ];
 
 const VideoPlayer = () => {
@@ -63,6 +67,7 @@ const VideoPlayer = () => {
   const [embedOpen, setEmbedOpen] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [subtitlesSrt, setSubtitlesSrt] = useState<string | null>(null);
+  const [activeActionTab, setActiveActionTab] = useState<ActionTabId | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -180,17 +185,33 @@ const VideoPlayer = () => {
 
         {/* Action tabs row */}
         <div className="flex items-center gap-1 border-b border-border">
-          {actionTabs.map(({ icon: Icon, label }) => (
+          {actionTabs.map(({ icon: Icon, label, id }) => (
             <button
-              key={label}
-              onClick={() => toast.info("Wkrótce dostępne")}
-              className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-t-md transition-colors"
+              key={id}
+              onClick={() => {
+                if (id === "edytuj" || id === "klipy") {
+                  toast.info("Wkrótce dostępne");
+                } else {
+                  setActiveActionTab(activeActionTab === id ? null : id);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-sm transition-colors rounded-t-md ${
+                activeActionTab === id
+                  ? "text-foreground border-b-2 border-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
             >
               <Icon className="h-4 w-4" />
               {label}
             </button>
           ))}
         </div>
+
+        {/* Active tab content */}
+        {activeActionTab === "dostosuj" && <VideoCustomizeTab />}
+        {activeActionTab === "analityka" && video && id && (
+          <VideoAnalyticsTab videoId={id} video={video} />
+        )}
 
         {/* Two-column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -201,6 +222,7 @@ const VideoPlayer = () => {
               src={videoUrl}
               poster={video.thumbnail_url || undefined}
               subtitlesSrt={subtitlesSrt}
+              videoId={id}
               autoPlay
             />
             <Button variant="outline" className="w-full mt-3" asChild>
