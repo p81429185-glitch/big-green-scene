@@ -110,7 +110,10 @@ export function useVideoStore() {
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
     const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || anonKey;
+    const token = session?.access_token;
+    if (!token) {
+      throw new Error("Sesja wygasła – zaloguj się ponownie, aby przesłać plik.");
+    }
 
     return new Promise((resolve, reject) => {
       const upload = new tus.Upload(file, {
