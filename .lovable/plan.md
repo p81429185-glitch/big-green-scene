@@ -1,67 +1,29 @@
 
 
-## Redesign dialogu Embed -- wiekszy, czystszy, wygodniejszy
+## Naprawa bledu 413 "Maximum size exceeded" przy uploadzie wideo
 
 ### Problem
-Dialog embed jest za maly (`max-w-2xl` = 672px), wszystko jest scisnete w jednej kolumnie, podglad jest malutki, i calosc wyglada na zatloczona. Uzytkownik nie widzi wszystkiego wygodnie.
+Bucket `videos` w storage ma domyslny limit wielkosci pliku (50MB). Przy wiekszych plikach wideo serwer zwraca blad 413.
 
 ### Rozwiazanie
+Zwiekszyc limit wielkosci pliku w ustawieniach bucketa `videos` do **5GB** (5368709120 bajtow). Protokol tus juz obsluguje chunked upload z kawaikami po 6MB, wiec jedynym blokerem jest konfiguracja bucketa.
 
-Przeprojektowac dialog na **layout dwukolumnowy w pelnym ekranie**:
-- Lewa kolumna: ustawienia (rozmiar, branding, zaawansowane opcje)
-- Prawa kolumna: duzy podglad na zywo (browser mockup z iframe) -- **zawsze widoczny**, nie trzeba klikac przycisku
+### Zmiany
 
-### Zmiany w `EmbedDialog.tsx`
+**1. Migracja SQL** -- aktualizacja limitu bucketa `videos`
 
-1. **Wiekszy dialog**: `max-w-6xl` zamiast `max-w-2xl`, `h-[90vh]`
-
-2. **Layout dwukolumnowy**:
-   - Lewa strona (~40%): ustawienia w ScrollArea -- taby (Inline/Popover/LLM/Email/Transkrypcja), rozmiar, branding, zaawansowane opcje
-   - Prawa strona (~60%): duzy podglad embed w browser mockup z iframe `srcDoc` -- aktualizuje sie na zywo przy kazdej zmianie ustawien
-
-3. **Podglad zawsze widoczny**: Usunac osobny przycisk "Podglad" i stan `previewMode` -- podglad jest po prostu zawsze po prawej stronie. Przycisk "Pokaz kod" przelacza prawa strone miedzy podgladem a kodem.
-
-4. **Czystszy footer**: Tylko "Pokaz kod" i "Kopiuj kod" -- bez "Podglad" (bo juz widoczny)
-
-5. **Browser mockup w prawej kolumnie**:
-   - Symulowany pasek przegladarki (kropki + URL bar)
-   - iframe z `srcDoc` renderujacy `embedCode` na zywo
-   - Duzy, czytelny podglad zajmujacy cala prawda strone
-
-### Schemat layoutu
-
-```text
-+------------------------------------------------------------------+
-| Osadz media                                                   [X]|
-| Info banner                                                      |
-+------------------------------------------------------------------+
-| Taby: Inline | Popover | LLM | Email | Transkrypcja             |
-+-------------------------------+----------------------------------+
-|  USTAWIENIA (scroll)          |  PODGLAD NA ZYWO                 |
-|                               |  [o o o] https://your-site.com   |
-|  [Miniaturka]                 |  +------------------------------+ |
-|  [Branding v]                 |  |                              | |
-|  [Rozmiar]                    |  |   iframe z embedCode         | |
-|  [Zaawansowane v]             |  |                              | |
-|                               |  +------------------------------+ |
-+-------------------------------+----------------------------------+
-| [Pokaz kod]                              [Kopiuj kod]            |
-+------------------------------------------------------------------+
+```sql
+UPDATE storage.buckets
+SET file_size_limit = 5368709120
+WHERE id = 'videos';
 ```
 
-### Plik do edycji
+To ustawia limit na 5GB, co pokrywa wiekszosc plikow wideo. Sam upload juz dziala przez tus z chunkami 6MB, wiec nie trzeba zmieniac kodu klienta.
+
+### Pliki do edycji
 
 | Plik | Akcja |
 |------|-------|
-| `src/components/dashboard/EmbedDialog.tsx` | Edycja -- nowy layout dwukolumnowy, wiekszy dialog, podglad zawsze widoczny |
+| Migracja SQL | Nowa migracja -- `UPDATE storage.buckets SET file_size_limit` |
 
-### Szczegoly techniczne
-
-- Dialog: `max-w-6xl h-[90vh]` z `flex flex-col`
-- Srodkowa czesc: `grid grid-cols-5 gap-0 flex-1 min-h-0` (2 kolumny na ustawienia, 3 na podglad)
-- Lewa kolumna: `col-span-2 border-r overflow-y-auto p-4` z ustawieniami
-- Prawa kolumna: `col-span-3 p-4 flex flex-col` z browser mockup i iframe
-- Usunac stan `previewMode` -- podglad jest domyslny w prawej kolumnie
-- Gdy `showCode=true`, prawa kolumna pokazuje kod zamiast iframe
-- iframe: `sandbox="allow-scripts"` z `srcDoc` renderujacym embedCode, `flex-1` zeby zajmowal cala dostepna przestrzen
-
+Zadne pliki kodu nie wymagaja zmian -- problem jest wylacznie w konfiguracji bucketa.
