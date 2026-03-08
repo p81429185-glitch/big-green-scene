@@ -33,6 +33,8 @@ interface Video {
   created_at: string;
   folder_id: string | null;
   transcription: string | null;
+  is_processed: boolean;
+  processing_status: string;
 }
 
 interface Folder {
