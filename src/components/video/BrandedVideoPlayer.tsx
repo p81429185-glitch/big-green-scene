@@ -43,6 +43,7 @@ interface BrandedVideoPlayerProps {
   autoPlay?: boolean;
   videoId?: string;
   onTimeUpdate?: (time: number) => void;
+  onCanPlay?: () => void;
 }
 
 export interface BrandedVideoPlayerHandle {
@@ -51,7 +52,7 @@ export interface BrandedVideoPlayerHandle {
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
