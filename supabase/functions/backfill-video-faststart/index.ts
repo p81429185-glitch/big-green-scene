@@ -17,15 +17,17 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Query all unprocessed videos — return list only, no file processing
-    const { data: videos, error: queryError } = await supabase
-      .from("videos")
-      .select("id, title, size, storage_path")
-      .or("is_processed.is.null,is_processed.eq.false")
-      .order("created_at", { ascending: true });
+    const url = new URL(req.url);
+    const limit = Math.min(Number(url.searchParams.get("limit") || 50), 500);
 
-    if (queryError) {
-      console.error("Query error:", queryError);
+    const { data: videos, error } = await supabase
+      .from("videos")
+      .select("id, title, storage_path, size")
+      .or("is_processed.is.null,is_processed.eq.false")
+      .order("size", { ascending: true })
+      .limit(limit);
+
+    if (error) {
       return new Response(
         JSON.stringify({ error: "Failed to query videos" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -37,7 +39,6 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error("backfill-video-faststart error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
