@@ -436,6 +436,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           >
             <div className="w-full h-1.5 rounded-full relative" style={{ background: "rgba(255,255,255,0.3)" }}>
               <div
+                ref={progressFillRef}
                 className="h-full rounded-full relative"
                 style={{ width: `${displayProgress}%`, background: settings.progress_color }}
               >
