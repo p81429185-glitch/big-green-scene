@@ -11,7 +11,7 @@
  * ArrayBuffers are transferred (not copied) for memory efficiency.
  */
 
-import { isFaststart, relocateMoovToStart } from "@/lib/moovAtomUtils";
+import { isFaststart, relocateMoovToStart } from "../lib/moovAtomUtils";
 
 export interface FaststartRequest {
   type: "PROCESS";
