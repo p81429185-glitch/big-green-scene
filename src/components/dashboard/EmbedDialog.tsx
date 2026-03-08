@@ -93,7 +93,7 @@ function generateCustomPlayerCode(
   <style>@keyframes spin${uid}{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>`;
 
   // Secure fetch script with localStorage caching (50-minute TTL)
-  const secureFetchScript = useSecureUrl ? `
+  const secureFetchScript = `
     (function(){
       var cacheKey = "embed_url_${videoId}";
       var cached = null;
@@ -108,7 +108,7 @@ function generateCustomPlayerCode(
         fetch("${supabaseUrl}/functions/v1/get-embed-url", {
           method: "POST",
           headers: {"Content-Type":"application/json","apikey":"${anonKey}"},
-          body: JSON.stringify({video_id:"${videoId}"})
+          body: JSON.stringify({video_id:"${videoId}"${skipDomainCheck ? ',skip_domain_check:true' : ''}})
         })
         .then(function(r){ return r.json(); })
         .then(function(d){
@@ -132,12 +132,7 @@ function generateCustomPlayerCode(
       } else {
         fetchAndCache();
       }
-    })();` : "";
-
-  // Non-secure direct load script
-  const directLoadScript = !useSecureUrl ? `
-    var v=document.getElementById("${vid}");
-    v.src="${videoUrl}";` : "";
+    })();`;
 
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
