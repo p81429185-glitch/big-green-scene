@@ -285,12 +285,15 @@ const AdminUsersView = () => {
         failedCount++;
         failedTitles.push(video.title);
 
-        // Mark as failed in DB
-        await supabase
-          .from("videos")
-          .update({ processing_status: "failed" })
-          .eq("id", video.id)
-          .catch(() => {}); // best effort
+        // Mark as failed in DB (best effort)
+        try {
+          await supabase
+            .from("videos")
+            .update({ processing_status: "failed" })
+            .eq("id", video.id);
+        } catch {
+          // ignore
+        }
       }
 
       // Step g+h: Update counters & breathing room
