@@ -46,7 +46,6 @@ interface EmbedDialogProps {
 }
 
 function generateCustomPlayerCode(
-  videoUrl: string,
   brandColor: string,
   brandIconColor: string,
   brandProgressColor: string,
@@ -56,11 +55,11 @@ function generateCustomPlayerCode(
   sizeMode: string,
   embedWidth: string,
   embedHeight: string,
-  useSecureUrl: boolean,
   videoId: string,
   supabaseUrl: string,
   anonKey: string,
   thumbnailUrl: string | null,
+  skipDomainCheck: boolean,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
