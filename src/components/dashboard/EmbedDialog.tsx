@@ -46,7 +46,6 @@ interface EmbedDialogProps {
 }
 
 function generateCustomPlayerCode(
-  videoUrl: string,
   brandColor: string,
   brandIconColor: string,
   brandProgressColor: string,
@@ -56,11 +55,11 @@ function generateCustomPlayerCode(
   sizeMode: string,
   embedWidth: string,
   embedHeight: string,
-  useSecureUrl: boolean,
   videoId: string,
   supabaseUrl: string,
   anonKey: string,
   thumbnailUrl: string | null,
+  skipDomainCheck: boolean,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
@@ -81,7 +80,7 @@ function generateCustomPlayerCode(
     : "";
 
   const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
-  const videoSrc = useSecureUrl ? "" : videoUrl;
+  const videoSrc = "";
   
   // Loading overlay HTML
   const loadingOverlayHtml = `
@@ -94,7 +93,7 @@ function generateCustomPlayerCode(
   <style>@keyframes spin${uid}{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>`;
 
   // Secure fetch script with localStorage caching (50-minute TTL)
-  const secureFetchScript = useSecureUrl ? `
+  const secureFetchScript = `
     (function(){
       var cacheKey = "embed_url_${videoId}";
       var cached = null;
@@ -109,7 +108,7 @@ function generateCustomPlayerCode(
         fetch("${supabaseUrl}/functions/v1/get-embed-url", {
           method: "POST",
           headers: {"Content-Type":"application/json","apikey":"${anonKey}"},
-          body: JSON.stringify({video_id:"${videoId}"})
+          body: JSON.stringify({video_id:"${videoId}"${skipDomainCheck ? ',skip_domain_check:true' : ''}})
         })
         .then(function(r){ return r.json(); })
         .then(function(d){
@@ -133,12 +132,7 @@ function generateCustomPlayerCode(
       } else {
         fetchAndCache();
       }
-    })();` : "";
-
-  // Non-secure direct load script
-  const directLoadScript = !useSecureUrl ? `
-    var v=document.getElementById("${vid}");
-    v.src="${videoUrl}";` : "";
+    })();`;
 
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
@@ -203,7 +197,6 @@ function generateCustomPlayerCode(
     bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
     w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
     w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
-    ${directLoadScript}
   })();${secureFetchScript}
   </script>
 </div>`;
@@ -263,11 +256,11 @@ const EmbedDialog = ({
     let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
       rawCode = generateCustomPlayerCode(
-        videoUrl, brandColor, brandIconColor, brandProgressColor,
+        brandColor, brandIconColor, brandProgressColor,
         brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
         sizeMode, embedWidth, embedHeight,
-        domainRestricted && !!allowedDomain.trim() && !!videoId,
         videoId || "", supabaseUrl, anonKey, thumbnailUrl,
+        !(domainRestricted && !!allowedDomain.trim()),
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {

@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { video_id } = await req.json();
+    const { video_id, skip_domain_check } = await req.json();
     if (!video_id) {
       return new Response(JSON.stringify({ error: "video_id is required" }), {
         status: 400,
@@ -38,41 +38,43 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check embed settings
-    const { data: embedSettings } = await supabase
-      .from("video_embed_settings")
-      .select("restrict_domain, allowed_domains")
-      .eq("video_id", video_id)
-      .maybeSingle();
+    // Check embed settings (skip if skip_domain_check is true)
+    if (!skip_domain_check) {
+      const { data: embedSettings } = await supabase
+        .from("video_embed_settings")
+        .select("restrict_domain, allowed_domains")
+        .eq("video_id", video_id)
+        .maybeSingle();
 
-    if (embedSettings?.restrict_domain && embedSettings.allowed_domains?.length) {
-      const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-      let hostname = "";
-      try {
-        hostname = new URL(origin).hostname;
-      } catch {
-        hostname = origin;
-      }
+      if (embedSettings?.restrict_domain && embedSettings.allowed_domains?.length) {
+        const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+        let hostname = "";
+        try {
+          hostname = new URL(origin).hostname;
+        } catch {
+          hostname = origin;
+        }
 
-      const allowed = embedSettings.allowed_domains.some((domain: string) => {
-        return hostname === domain || hostname.endsWith("." + domain);
-      });
+        const allowed = embedSettings.allowed_domains.some((domain: string) => {
+          return hostname === domain || hostname.endsWith("." + domain);
+        });
 
-      if (!allowed) {
-        return new Response(
-          JSON.stringify({ error: "Domain not allowed" }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        if (!allowed) {
+          return new Response(
+            JSON.stringify({ error: "Domain not allowed" }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
       }
     }
 
-    // Generate signed URL (1 hour)
+    // Generate signed URL (4 hours)
     const { data: signedData, error: signErr } = await supabase.storage
       .from("videos")
-      .createSignedUrl(video.storage_path, 3600);
+      .createSignedUrl(video.storage_path, 14400);
 
     if (signErr || !signedData?.signedUrl) {
       return new Response(JSON.stringify({ error: "Failed to generate URL" }), {
