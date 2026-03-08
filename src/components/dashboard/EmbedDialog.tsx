@@ -60,6 +60,7 @@ function generateCustomPlayerCode(
   videoId: string,
   supabaseUrl: string,
   anonKey: string,
+  thumbnailUrl: string | null,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
@@ -69,6 +70,7 @@ function generateCustomPlayerCode(
   const playBtn = "pbtn" + uid;
   const volSlider = "vol" + uid;
   const qualMenu = "qual" + uid;
+  const loadingOverlay = "load" + uid;
 
   const sizeStyle = sizeMode === "responsive"
     ? "width:100%;max-width:100%;"
@@ -78,27 +80,70 @@ function generateCustomPlayerCode(
     ? `<img src="${brandLogoUrl.trim()}" style="position:absolute;top:12px;right:12px;height:30px;z-index:10;pointer-events:none;" />`
     : "";
 
+  const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
   const videoSrc = useSecureUrl ? "" : videoUrl;
+  
+  // Loading overlay HTML
+  const loadingOverlayHtml = `
+  <div id="${loadingOverlay}" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:15;${thumbnailUrl ? `background-image:url('${thumbnailUrl}');background-size:cover;background-position:center;` : ""}">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;${thumbnailUrl ? "background:rgba(0,0,0,0.6);" : ""}">
+      <svg width="40" height="40" viewBox="0 0 24 24" style="animation:spin${uid} 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="${brandIconColor}" stroke-width="2" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg>
+      <p style="color:${brandIconColor};font-size:13px;margin-top:12px;font-family:sans-serif;">Ładowanie...</p>
+    </div>
+  </div>
+  <style>@keyframes spin${uid}{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>`;
+
+  // Secure fetch script with localStorage caching (50-minute TTL)
   const secureFetchScript = useSecureUrl ? `
     (function(){
-      fetch("${supabaseUrl}/functions/v1/get-embed-url", {
-        method: "POST",
-        headers: {"Content-Type":"application/json","apikey":"${anonKey}"},
-        body: JSON.stringify({video_id:"${videoId}"})
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        if(d.url){ document.getElementById("${vid}").src = d.url; }
-        else { document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Ten film nie jest dostępny na tej stronie.</p>'; }
-      })
-      .catch(function(){
-        document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Nie udało się załadować filmu.</p>';
-      });
+      var cacheKey = "embed_url_${videoId}";
+      var cached = null;
+      try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e){}
+      
+      function setVideoSrc(url) {
+        var v = document.getElementById("${vid}");
+        if(v) v.src = url;
+      }
+      
+      function fetchAndCache() {
+        fetch("${supabaseUrl}/functions/v1/get-embed-url", {
+          method: "POST",
+          headers: {"Content-Type":"application/json","apikey":"${anonKey}"},
+          body: JSON.stringify({video_id:"${videoId}"})
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d.url){
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({url: d.url, ts: Date.now()}));
+            } catch(e){}
+            setVideoSrc(d.url);
+          } else {
+            document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Ten film nie jest dostępny na tej stronie.</p>';
+          }
+        })
+        .catch(function(){
+          document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Nie udało się załadować filmu.</p>';
+        });
+      }
+      
+      // Check cache validity (50 minutes = 3000000ms)
+      if(cached && cached.url && cached.ts && (Date.now() - cached.ts) < 3000000) {
+        setVideoSrc(cached.url);
+      } else {
+        fetchAndCache();
+      }
     })();` : "";
+
+  // Non-secure direct load script
+  const directLoadScript = !useSecureUrl ? `
+    var v=document.getElementById("${vid}");
+    v.src="${videoUrl}";` : "";
 
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
-  <video src="${videoSrc}" style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  ${loadingOverlayHtml}
+  <video preload="metadata"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
@@ -111,7 +156,7 @@ function generateCustomPlayerCode(
     </button>
   </div>
   <!-- Big play button -->
-  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:1;transition:opacity .3s;" id="big${playBtn}">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:1;transition:opacity .3s;z-index:6;" id="big${playBtn}">
     <div style="width:64px;height:64px;border-radius:50%;background:${brandPlayBgColor};display:flex;align-items:center;justify-content:center;">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="${brandIconColor}"><polygon points="5,3 19,12 5,21"/></svg>
     </div>
@@ -146,9 +191,11 @@ function generateCustomPlayerCode(
   </div>
   <script>
   (function(){
-    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}");
+    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}");
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
+    function hideLoading(){if(lo)lo.style.display="none";}
     function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
+    v.addEventListener("canplay",hideLoading);
     v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
     v.addEventListener("pause",function(){ico.innerHTML='<polygon points="5,3 19,12 5,21" fill="${brandIconColor}"/>';});
@@ -156,6 +203,7 @@ function generateCustomPlayerCode(
     bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
     w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
     w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
+    ${directLoadScript}
   })();${secureFetchScript}
   </script>
 </div>`;
@@ -219,7 +267,7 @@ const EmbedDialog = ({
         brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
         sizeMode, embedWidth, embedHeight,
         domainRestricted && !!allowedDomain.trim() && !!videoId,
-        videoId || "", supabaseUrl, anonKey,
+        videoId || "", supabaseUrl, anonKey, thumbnailUrl,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
