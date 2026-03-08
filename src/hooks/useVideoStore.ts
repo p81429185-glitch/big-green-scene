@@ -326,15 +326,8 @@ export function useVideoStore() {
         processing_status: "pending",
       } as VideoItem;
 
-      // Subscribe to realtime processing status updates
-      subscribeToProcessingStatus(inserted.id);
-
-      // Trigger faststart processing in background (fire-and-forget)
-      supabase.functions.invoke("process-video-faststart", {
-        body: { videoId: inserted.id, storagePath },
-      }).catch((err) => {
-        console.error("Faststart processing invocation error:", err);
-      });
+      // Note: faststart processing is now done client-side before upload.
+      // The process-video-faststart Edge Function is deprecated.
 
       // Generate thumbnail in background (non-blocking)
       generateThumbnail(file, inserted.id).then((thumbUrl) => {
