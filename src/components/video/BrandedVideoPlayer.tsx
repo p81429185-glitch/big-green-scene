@@ -196,15 +196,20 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         else if (v.videoWidth >= 1280) setSelectedQuality("720p");
         else setSelectedQuality("480p");
       };
+      const onCanPlayHandler = () => {
+        onCanPlay?.();
+      };
       v.addEventListener("play", onPlay);
       v.addEventListener("pause", onPause);
       v.addEventListener("loadedmetadata", onLoaded);
+      v.addEventListener("canplay", onCanPlayHandler);
       return () => {
         v.removeEventListener("play", onPlay);
         v.removeEventListener("pause", onPause);
         v.removeEventListener("loadedmetadata", onLoaded);
+        v.removeEventListener("canplay", onCanPlayHandler);
       };
-    }, []);
+    }, [onCanPlay]);
 
     // Fullscreen listener
     useEffect(() => {
