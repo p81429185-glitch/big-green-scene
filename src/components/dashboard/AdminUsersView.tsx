@@ -150,7 +150,7 @@ const AdminUsersView = () => {
   const processVideoInWorker = (buffer: ArrayBuffer, videoId: string): Promise<ArrayBuffer> => {
     return new Promise((resolve, reject) => {
       const worker = new Worker(
-        new URL("../workers/faststartWorker.ts", import.meta.url),
+        new URL("../../workers/faststartWorker.ts", import.meta.url),
         { type: "module" }
       );
 
