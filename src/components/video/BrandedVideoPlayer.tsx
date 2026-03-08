@@ -200,17 +200,22 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       const onCanPlayHandler = () => {
         onCanPlay?.();
       };
+      const onErrorHandler = () => {
+        onError?.();
+      };
       v.addEventListener("play", onPlay);
       v.addEventListener("pause", onPause);
       v.addEventListener("loadedmetadata", onLoaded);
       v.addEventListener("canplay", onCanPlayHandler);
+      v.addEventListener("error", onErrorHandler);
       return () => {
         v.removeEventListener("play", onPlay);
         v.removeEventListener("pause", onPause);
         v.removeEventListener("loadedmetadata", onLoaded);
         v.removeEventListener("canplay", onCanPlayHandler);
+        v.removeEventListener("error", onErrorHandler);
       };
-    }, [onCanPlay]);
+    }, [onCanPlay, onError]);
 
     // Fullscreen listener
     useEffect(() => {
