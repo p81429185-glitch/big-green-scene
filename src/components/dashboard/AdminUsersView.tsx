@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, Trash2, Loader2, RefreshCw, Video } from "lucide-react";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 interface UserProfile {
   id: string;
@@ -24,6 +25,11 @@ const AdminUsersView = () => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("user");
   const [creating, setCreating] = useState(false);
+
+  // Video reprocessing state
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const [totalVideos, setTotalVideos] = useState(0);
+  const [processedVideos, setProcessedVideos] = useState(0);
 
   const fetchUsers = async () => {
     const { data: profiles } = await supabase
@@ -90,8 +96,122 @@ const AdminUsersView = () => {
     }
   };
 
+  // Count processed videos
+  const countProcessedVideos = useCallback(async () => {
+    const { count } = await supabase
+      .from("videos")
+      .select("*", { count: "exact", head: true })
+      .eq("is_processed", true);
+    return count ?? 0;
+  }, []);
+
+  // Reprocess all videos handler
+  const handleReprocessVideos = async () => {
+    // First, count total unprocessed videos
+    const { count: unprocessedCount } = await supabase
+      .from("videos")
+      .select("*", { count: "exact", head: true })
+      .or("is_processed.is.null,is_processed.eq.false");
+
+    if (!unprocessedCount || unprocessedCount === 0) {
+      toast.info("Wszystkie filmy są już przetworzone");
+      return;
+    }
+
+    setTotalVideos(unprocessedCount);
+    setProcessedVideos(0);
+    setIsReprocessing(true);
+
+    // Subscribe to realtime updates on videos table
+    const channel = supabase
+      .channel("reprocess-progress")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "videos",
+        },
+        async () => {
+          // Recount processed videos on any update
+          const count = await countProcessedVideos();
+          setProcessedVideos(count);
+        }
+      )
+      .subscribe();
+
+    // Get initial count of already processed
+    const initialCount = await countProcessedVideos();
+    setProcessedVideos(initialCount);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("backfill-video-faststart");
+
+      if (error) {
+        toast.error(`Błąd przetwarzania: ${error.message}`);
+      } else if (data) {
+        const result = data as { total: number; success: number; failed: number; failed_ids: string[] };
+        if (result.failed > 0) {
+          toast.warning(`Przetworzono ${result.success}/${result.total} filmów. ${result.failed} nieudanych.`);
+        } else {
+          toast.success(`Wszystkie ${result.success} filmów zostało przetworzonych!`);
+        }
+      }
+    } catch (err) {
+      toast.error("Nieoczekiwany błąd podczas przetwarzania");
+    } finally {
+      // Cleanup subscription
+      supabase.removeChannel(channel);
+      setIsReprocessing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Video Reprocessing Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Video className="h-5 w-5" />
+            Przetwarzanie wideo
+          </CardTitle>
+          <CardDescription>
+            Przetwarza wszystkie filmy w bazie, które nie mają zoptymalizowanego formatu (faststart).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isReprocessing ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="font-medium">
+                  Przetwarzanie filmów... Nie zamykaj tej strony.
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Postęp</span>
+                  <span>{processedVideos} przetworzone</span>
+                </div>
+                <Progress 
+                  value={totalVideos > 0 ? (processedVideos / (processedVideos + totalVideos)) * 100 : 0} 
+                  className="h-2" 
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Duże pliki (500MB-1GB) mogą przetwarzać się kilka minut każdy.
+              </p>
+            </div>
+          ) : (
+            <Button onClick={handleReprocessVideos} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Przetwórz wszystkie filmy
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create User Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -127,6 +247,7 @@ const AdminUsersView = () => {
         </CardContent>
       </Card>
 
+      {/* Users List Card */}
       <Card>
         <CardHeader>
           <CardTitle>Użytkownicy ({users.length})</CardTitle>
