@@ -267,7 +267,7 @@ const EmbedDialog = ({
         brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
         sizeMode, embedWidth, embedHeight,
         domainRestricted && !!allowedDomain.trim() && !!videoId,
-        videoId || "", supabaseUrl, anonKey,
+        videoId || "", supabaseUrl, anonKey, thumbnailUrl,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
