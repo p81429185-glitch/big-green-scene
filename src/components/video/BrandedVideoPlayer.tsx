@@ -44,6 +44,7 @@ interface BrandedVideoPlayerProps {
   videoId?: string;
   onTimeUpdate?: (time: number) => void;
   onCanPlay?: () => void;
+  onError?: () => void;
 }
 
 export interface BrandedVideoPlayerHandle {
