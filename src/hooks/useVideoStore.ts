@@ -185,12 +185,29 @@ export function useVideoStore() {
         .single();
 
       if (insertError) throw insertError;
-      onProgress?.(100);
+      onProgress?.(95);
 
       const videoItem: VideoItem = {
         ...inserted,
         thumbnail_url: null,
+        is_processed: false,
+        processing_status: "pending",
       } as VideoItem;
+
+      // Trigger faststart processing in background (non-blocking)
+      supabase.functions.invoke("process-video-faststart", {
+        body: { videoId: inserted.id, storagePath },
+      }).then((result) => {
+        if (result.error) {
+          console.error("Faststart processing error:", result.error);
+        } else {
+          console.log("Faststart processing started:", result.data);
+          // Update local state when processing completes
+          setVideos((prev) => prev.map((v) => 
+            v.id === inserted.id ? { ...v, is_processed: true, processing_status: "ready" } : v
+          ));
+        }
+      });
 
       // Generate thumbnail in background (non-blocking)
       generateThumbnail(file, inserted.id).then((thumbUrl) => {
@@ -199,6 +216,7 @@ export function useVideoStore() {
         }
       });
 
+      onProgress?.(100);
       setVideos((prev) => [videoItem, ...prev]);
       return videoItem;
     },
