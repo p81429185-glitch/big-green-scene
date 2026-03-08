@@ -432,6 +432,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
             ref={progressBarRef}
             className="flex-1 h-2 rounded-full cursor-pointer relative group/progress py-2 flex items-center"
             onMouseDown={handleProgressMouseDown}
+            onTouchStart={handleProgressTouchStart}
           >
             <div className="w-full h-1.5 rounded-full relative" style={{ background: "rgba(255,255,255,0.3)" }}>
               <div
