@@ -230,7 +230,9 @@ export type Database = {
           folder_id: string | null
           id: string
           is_favorite: boolean
+          is_processed: boolean
           plays: number
+          processing_status: string
           size: number
           storage_path: string
           subtitles_srt: string | null
@@ -244,7 +246,9 @@ export type Database = {
           folder_id?: string | null
           id?: string
           is_favorite?: boolean
+          is_processed?: boolean
           plays?: number
+          processing_status?: string
           size?: number
           storage_path: string
           subtitles_srt?: string | null
@@ -258,7 +262,9 @@ export type Database = {
           folder_id?: string | null
           id?: string
           is_favorite?: boolean
+          is_processed?: boolean
           plays?: number
+          processing_status?: string
           size?: number
           storage_path?: string
           subtitles_srt?: string | null

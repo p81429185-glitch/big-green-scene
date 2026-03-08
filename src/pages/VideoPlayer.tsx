@@ -4,7 +4,7 @@ import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
-  FileText, ExternalLink, BookOpen,
+  FileText, ExternalLink, BookOpen, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +33,8 @@ interface Video {
   created_at: string;
   folder_id: string | null;
   transcription: string | null;
+  is_processed: boolean;
+  processing_status: string;
 }
 
 interface Folder {
@@ -217,14 +219,26 @@ const VideoPlayer = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: video player */}
           <div className="lg:col-span-2">
-            <BrandedVideoPlayer
-              ref={playerRef}
-              src={videoUrl}
-              poster={video.thumbnail_url || undefined}
-              subtitlesSrt={subtitlesSrt}
-              videoId={id}
-              autoPlay
-            />
+            {!video.is_processed && video.processing_status !== "ready" ? (
+              <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <div className="text-center">
+                  <p className="text-lg font-medium">Film jest przetwarzany...</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Optymalizacja do szybkiego odtwarzania. Odśwież stronę za chwilę.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <BrandedVideoPlayer
+                ref={playerRef}
+                src={videoUrl}
+                poster={video.thumbnail_url || undefined}
+                subtitlesSrt={subtitlesSrt}
+                videoId={id}
+                autoPlay
+              />
+            )}
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1.5" />
