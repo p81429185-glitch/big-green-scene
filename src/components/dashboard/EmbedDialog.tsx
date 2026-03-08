@@ -256,11 +256,11 @@ const EmbedDialog = ({
     let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
       rawCode = generateCustomPlayerCode(
-        videoUrl, brandColor, brandIconColor, brandProgressColor,
+        brandColor, brandIconColor, brandProgressColor,
         brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
         sizeMode, embedWidth, embedHeight,
-        domainRestricted && !!allowedDomain.trim() && !!videoId,
         videoId || "", supabaseUrl, anonKey, thumbnailUrl,
+        !(domainRestricted && !!allowedDomain.trim()),
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
