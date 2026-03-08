@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { stripVideoMetadata } from "@/lib/stripVideoMetadata";
 import * as tus from "tus-js-client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface VideoItem {
   id: string;
@@ -36,6 +37,7 @@ export function useVideoStore() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
 
   const fetchVideos = useCallback(async () => {
     const { data } = await supabase
@@ -55,7 +57,56 @@ export function useVideoStore() {
 
   useEffect(() => {
     Promise.all([fetchVideos(), fetchFolders()]).finally(() => setLoading(false));
+    
+    // Cleanup realtime subscriptions on unmount
+    return () => {
+      channelsRef.current.forEach((channel) => {
+        supabase.removeChannel(channel);
+      });
+      channelsRef.current.clear();
+    };
   }, [fetchVideos, fetchFolders]);
+
+  // Subscribe to processing status changes for a specific video
+  const subscribeToProcessingStatus = useCallback((videoId: string) => {
+    // Don't create duplicate subscriptions
+    if (channelsRef.current.has(videoId)) return;
+
+    const channel = supabase
+      .channel(`video-processing-${videoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'videos',
+          filter: `id=eq.${videoId}`,
+        },
+        (payload) => {
+          const newData = payload.new as VideoItem;
+          console.log(`Video ${videoId} status updated:`, newData.processing_status);
+          
+          // Update local state with new processing status
+          setVideos((prev) => prev.map((v) => 
+            v.id === videoId 
+              ? { ...v, is_processed: newData.is_processed, processing_status: newData.processing_status }
+              : v
+          ));
+
+          // If processing is complete, unsubscribe
+          if (newData.processing_status === "ready" || newData.processing_status === "failed") {
+            const ch = channelsRef.current.get(videoId);
+            if (ch) {
+              supabase.removeChannel(ch);
+              channelsRef.current.delete(videoId);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    channelsRef.current.set(videoId, channel);
+  }, []);
 
   const getPublicUrl = (bucket: string, path: string) => {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
@@ -196,19 +247,14 @@ export function useVideoStore() {
         processing_status: "pending",
       } as VideoItem;
 
-      // Trigger faststart processing in background (non-blocking)
+      // Subscribe to realtime processing status updates
+      subscribeToProcessingStatus(inserted.id);
+
+      // Trigger faststart processing in background (fire-and-forget)
       supabase.functions.invoke("process-video-faststart", {
         body: { videoId: inserted.id, storagePath },
-      }).then((result) => {
-        if (result.error) {
-          console.error("Faststart processing error:", result.error);
-        } else {
-          console.log("Faststart processing started:", result.data);
-          // Update local state when processing completes
-          setVideos((prev) => prev.map((v) => 
-            v.id === inserted.id ? { ...v, is_processed: true, processing_status: "ready" } : v
-          ));
-        }
+      }).catch((err) => {
+        console.error("Faststart processing invocation error:", err);
       });
 
       // Generate thumbnail in background (non-blocking)
