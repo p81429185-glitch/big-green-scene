@@ -114,48 +114,127 @@ export function useVideoStore() {
   };
 
   const generateThumbnail = async (file: File, videoId: string): Promise<string | null> => {
-    const objectUrl = URL.createObjectURL(file);
-    return new Promise((resolve) => {
-      const video = document.createElement("video");
-      video.muted = true;
-      video.preload = "metadata";
-      video.src = objectUrl;
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      
+      return new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.muted = true;
+        video.preload = "metadata";
+        video.crossOrigin = "anonymous";
+        video.src = objectUrl;
 
-      const cleanup = () => URL.revokeObjectURL(objectUrl);
+        let resolved = false;
+        let metadataLoaded = false;
+        let captureAttempted = false;
 
-      video.addEventListener("loadeddata", () => {
-        video.currentTime = Math.min(1, video.duration / 2);
-      });
+        const cleanup = () => {
+          try { URL.revokeObjectURL(objectUrl); } catch {}
+        };
 
-      video.addEventListener("seeked", async () => {
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 320;
-          canvas.height = 180;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) { cleanup(); resolve(null); return; }
-          ctx.drawImage(video, 0, 0, 320, 180);
-          canvas.toBlob(async (blob) => {
-            cleanup();
-            if (!blob) { resolve(null); return; }
-            const thumbPath = `${videoId}.jpg`;
-            const { error } = await supabase.storage
-              .from("thumbnails")
-              .upload(thumbPath, blob, { contentType: "image/jpeg", upsert: true });
-            if (error) { resolve(null); return; }
-            const url = getPublicUrl("thumbnails", thumbPath);
-            await supabase.from("videos").update({ thumbnail_url: url }).eq("id", videoId);
-            resolve(url);
-          }, "image/jpeg", 0.7);
-        } catch {
+        const safeResolve = (value: string | null) => {
+          if (resolved) return;
+          resolved = true;
           cleanup();
-          resolve(null);
-        }
-      });
+          resolve(value);
+        };
 
-      video.addEventListener("error", () => { cleanup(); resolve(null); });
-      setTimeout(() => { cleanup(); resolve(null); }, 10000);
-    });
+        const captureFrame = async () => {
+          if (captureAttempted || resolved) return;
+          captureAttempted = true;
+
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = 320;
+            canvas.height = 180;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) { safeResolve(null); return; }
+            
+            ctx.drawImage(video, 0, 0, 320, 180);
+            
+            canvas.toBlob(async (blob) => {
+              if (!blob || resolved) { safeResolve(null); return; }
+              try {
+                const thumbPath = `${videoId}.jpg`;
+                const { error } = await supabase.storage
+                  .from("thumbnails")
+                  .upload(thumbPath, blob, { contentType: "image/jpeg", upsert: true });
+                if (error) { safeResolve(null); return; }
+                const url = getPublicUrl("thumbnails", thumbPath);
+                await supabase.from("videos").update({ thumbnail_url: url }).eq("id", videoId);
+                safeResolve(url);
+              } catch {
+                safeResolve(null);
+              }
+            }, "image/jpeg", 0.7);
+          } catch {
+            safeResolve(null);
+          }
+        };
+
+        const attemptSeek = () => {
+          if (resolved) return;
+          metadataLoaded = true;
+          
+          const seekTime = video.duration && isFinite(video.duration) 
+            ? Math.min(1, video.duration / 2) 
+            : 0;
+          
+          if (seekTime === 0 || video.currentTime === seekTime) {
+            // No seek needed or already at position
+            captureFrame();
+          } else {
+            video.currentTime = seekTime;
+          }
+        };
+
+        // Listen for both loadeddata and canplay - use whichever fires first
+        const onMetadataReady = () => {
+          if (!metadataLoaded) {
+            attemptSeek();
+          }
+        };
+
+        video.addEventListener("loadeddata", onMetadataReady);
+        video.addEventListener("canplay", onMetadataReady);
+        video.addEventListener("loadedmetadata", onMetadataReady);
+
+        // Listen for both seeked and timeupdate as fallback for capture
+        const onSeekComplete = () => {
+          if (!captureAttempted) {
+            captureFrame();
+          }
+        };
+
+        video.addEventListener("seeked", onSeekComplete);
+        video.addEventListener("timeupdate", () => {
+          // Only capture on timeupdate if we've seeked and not yet captured
+          if (metadataLoaded && !captureAttempted && video.currentTime > 0) {
+            onSeekComplete();
+          }
+        });
+
+        video.addEventListener("error", () => safeResolve(null));
+
+        // Fallback: if duration unavailable after 5s, capture at currentTime=0
+        setTimeout(() => {
+          if (!metadataLoaded && !resolved) {
+            console.log("Thumbnail: metadata timeout, attempting capture at t=0");
+            captureFrame();
+          }
+        }, 5000);
+
+        // Final timeout: 30 seconds
+        setTimeout(() => {
+          if (!resolved) {
+            console.log("Thumbnail: final timeout reached");
+            safeResolve(null);
+          }
+        }, 30000);
+      });
+    } catch {
+      return null;
+    }
   };
 
   const uploadFileTus = async (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
