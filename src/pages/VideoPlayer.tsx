@@ -59,20 +59,23 @@ const actionTabs: { icon: typeof Pencil; label: string; id: ActionTabId }[] = [
   { icon: Scissors, label: "Klipy", id: "klipy" },
 ];
 
-// Video loading wrapper with progress and timeout detection
+// Video loading wrapper with progress, timeout detection, and non-blocking processing banner
 interface VideoLoadingWrapperProps {
   src: string;
   poster?: string;
   subtitlesSrt: string | null;
   videoId: string;
   playerRef: React.RefObject<BrandedVideoPlayerHandle>;
+  isProcessed: boolean;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
+  const [showProcessingBanner, setShowProcessingBanner] = useState(!isProcessed);
+  const [videoError, setVideoError] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -80,21 +83,46 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef }: 
     setIsLoading(false);
     setLoadTimeout(false);
     setProgress(100);
+    setShowProcessingBanner(false);
+    setVideoError(false);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
   }, []);
 
+  const handleError = useCallback(() => {
+    if (!isProcessed) {
+      // Video failed to load AND is not processed — show full processing screen
+      setVideoError(true);
+      setIsLoading(false);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (progressRef.current) clearInterval(progressRef.current);
+    }
+  }, [isProcessed]);
+
   const handleRetry = useCallback(() => {
     setIsLoading(true);
     setLoadTimeout(false);
+    setVideoError(false);
     setProgress(0);
     setRetryKey(prev => prev + 1);
   }, []);
+
+  // Update processing banner when isProcessed changes (via realtime)
+  useEffect(() => {
+    if (isProcessed) {
+      setShowProcessingBanner(false);
+      if (videoError) {
+        // Video became processed, retry loading
+        handleRetry();
+      }
+    }
+  }, [isProcessed, videoError, handleRetry]);
 
   useEffect(() => {
     // Reset state when src changes
     setIsLoading(true);
     setLoadTimeout(false);
+    setVideoError(false);
     setProgress(0);
 
     // Animated progress bar (fake progress for UX)
@@ -117,8 +145,34 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef }: 
     };
   }, [src, retryKey]);
 
+  // Full-screen processing/error fallback
+  if (videoError && !isProcessed) {
+    return (
+      <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <div className="text-center">
+          <p className="text-lg font-medium">Film jest przetwarzany...</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Optymalizacja do szybkiego odtwarzania. Strona odświeży się automatycznie.
+          </p>
+        </div>
+        <Button onClick={handleRetry} variant="outline" className="mt-2">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Spróbuj ponownie
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
+      {/* Non-blocking amber processing banner */}
+      {showProcessingBanner && (
+        <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg">
+          Optymalizacja w toku — pierwsze uruchomienie może potrwać dłużej
+        </div>
+      )}
+
       {/* Show poster/loading overlay while video loads */}
       {isLoading && (
         <div 
@@ -167,6 +221,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef }: 
           videoId={videoId}
           autoPlay
           onCanPlay={handleCanPlay}
+          onError={handleError}
         />
       </div>
     </div>
