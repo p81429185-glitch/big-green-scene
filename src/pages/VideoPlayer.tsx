@@ -345,13 +345,12 @@ const VideoPlayer = () => {
                 </div>
               </div>
             ) : (
-              <BrandedVideoPlayer
-                ref={playerRef}
+              <VideoLoadingWrapper
                 src={videoUrl}
                 poster={video.thumbnail_url || undefined}
                 subtitlesSrt={subtitlesSrt}
                 videoId={id}
-                autoPlay
+                playerRef={playerRef}
               />
             )}
             <Button variant="outline" className="w-full mt-3" asChild>
