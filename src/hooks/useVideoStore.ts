@@ -289,6 +289,28 @@ export function useVideoStore() {
     });
   };
 
+  const processFileInWorker = (buffer: ArrayBuffer): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(
+        new URL("../workers/faststartWorker.ts", import.meta.url),
+        { type: "module" }
+      );
+      worker.onmessage = (e: MessageEvent<FaststartResponse>) => {
+        worker.terminate();
+        if (e.data.type === "DONE") resolve(e.data.buffer);
+        else reject(new Error(e.data.error));
+      };
+      worker.onerror = (err) => {
+        worker.terminate();
+        reject(new Error(err.message || "Worker error"));
+      };
+      worker.postMessage(
+        { type: "PROCESS", buffer, videoId: "upload" },
+        [buffer]
+      );
+    });
+  };
+
   const uploadVideo = useCallback(
     async (
       file: File,
@@ -300,9 +322,52 @@ export function useVideoStore() {
       // Strip metadata (GPS, device info) before upload
       const cleanFile = await stripVideoMetadata(file);
 
-      // Upload cleaned file with real progress
+      // --- Faststart pre-processing ---
+      let fileToUpload: File = cleanFile;
+      let isProcessed = false;
+      const isMp4 = /\.(mp4|m4v|mov)$/i.test(file.name);
+
+      if (isMp4) {
+        try {
+          // Step 1: Quick check using only first 64KB
+          const headerSlice = cleanFile.slice(0, 65536);
+          const headerBuffer = await headerSlice.arrayBuffer();
+
+          if (isFaststart(headerBuffer)) {
+            // Already optimized
+            isProcessed = true;
+          } else {
+            // Need to process — read full file
+            const fullBuffer = await cleanFile.arrayBuffer();
+            const SIZE_100MB = 100 * 1024 * 1024;
+
+            let processedBuffer: ArrayBuffer;
+
+            if (cleanFile.size < SIZE_100MB) {
+              // Synchronous processing for small files
+              processedBuffer = relocateMoovToStart(fullBuffer);
+            } else {
+              // Worker processing for large files
+              toast.info("Optymalizacja wideo dla szybkiego odtwarzania...");
+              processedBuffer = await processFileInWorker(fullBuffer);
+            }
+
+            fileToUpload = new File([processedBuffer], cleanFile.name, {
+              type: cleanFile.type || "video/mp4",
+            });
+            isProcessed = true;
+          }
+        } catch (err) {
+          // Processing failed — upload original, don't block
+          console.error("Faststart pre-processing failed, uploading original:", err);
+          fileToUpload = cleanFile;
+          isProcessed = false;
+        }
+      }
+
+      // Upload file with real progress
       onProgress?.(0);
-      await uploadFileTus(cleanFile, storagePath, onProgress);
+      await uploadFileTus(fileToUpload, storagePath, onProgress);
 
       // Insert metadata (90-95%)
       onProgress?.(91);
@@ -315,6 +380,8 @@ export function useVideoStore() {
           size: file.size,
           folder_id: folderId,
           storage_path: storagePath,
+          is_processed: isProcessed,
+          processing_status: isProcessed ? "ready" : "pending",
         })
         .select()
         .single();
@@ -325,12 +392,9 @@ export function useVideoStore() {
       const videoItem: VideoItem = {
         ...inserted,
         thumbnail_url: null,
-        is_processed: false,
-        processing_status: "pending",
+        is_processed: isProcessed,
+        processing_status: isProcessed ? "ready" : "pending",
       } as VideoItem;
-
-      // Note: faststart processing is now done client-side before upload.
-      // The process-video-faststart Edge Function is deprecated.
 
       // Generate thumbnail in background (non-blocking)
       generateThumbnail(file, inserted.id).then((thumbUrl) => {
