@@ -144,23 +144,52 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     }, []);
 
+    const updateProgressDOM = useCallback((pos: number) => {
+      seekPositionRef.current = pos;
+      if (progressFillRef.current) {
+        progressFillRef.current.style.width = (pos * 100) + "%";
+      }
+    }, []);
+
     const handleProgressMouseDown = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
         const pos = calcSeekPosition(e.clientX);
         setIsSeeking(true);
-        setSeekPosition(pos);
+        updateProgressDOM(pos);
       },
-      [calcSeekPosition]
+      [calcSeekPosition, updateProgressDOM]
+    );
+
+    const handleProgressTouchStart = useCallback(
+      (e: React.TouchEvent<HTMLDivElement>) => {
+        const pos = calcSeekPosition(e.touches[0].clientX);
+        setIsSeeking(true);
+        updateProgressDOM(pos);
+      },
+      [calcSeekPosition, updateProgressDOM]
     );
 
     useEffect(() => {
       if (!isSeeking) return;
       const onMove = (e: MouseEvent) => {
-        setSeekPosition(calcSeekPosition(e.clientX));
+        updateProgressDOM(calcSeekPosition(e.clientX));
       };
       const onUp = (e: MouseEvent) => {
         const pos = calcSeekPosition(e.clientX);
+        setSeekPosition(pos);
+        if (videoRef.current && duration) {
+          videoRef.current.currentTime = pos * duration;
+        }
+        setIsSeeking(false);
+      };
+      const onTouchMove = (e: TouchEvent) => {
+        e.preventDefault();
+        updateProgressDOM(calcSeekPosition(e.touches[0].clientX));
+      };
+      const onTouchEnd = (e: TouchEvent) => {
+        const pos = calcSeekPosition(e.changedTouches[0].clientX);
+        setSeekPosition(pos);
         if (videoRef.current && duration) {
           videoRef.current.currentTime = pos * duration;
         }
@@ -168,11 +197,15 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
+      window.addEventListener("touchmove", onTouchMove, { passive: false });
+      window.addEventListener("touchend", onTouchEnd);
       return () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("touchend", onTouchEnd);
       };
-    }, [isSeeking, duration, calcSeekPosition]);
+    }, [isSeeking, duration, calcSeekPosition, updateProgressDOM]);
 
     const toggleFullscreen = useCallback(() => {
       const el = containerRef.current;
