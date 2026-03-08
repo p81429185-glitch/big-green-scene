@@ -73,6 +73,8 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const [volume, setVolume] = useState(1);
     const [isSeeking, setIsSeeking] = useState(false);
     const [seekPosition, setSeekPosition] = useState(0);
+    const seekPositionRef = useRef<number>(0);
+    const progressFillRef = useRef<HTMLDivElement>(null);
     const progressBarRef = useRef<HTMLDivElement>(null);
 
     const segments = subtitlesSrt ? parseSrt(subtitlesSrt) : [];
