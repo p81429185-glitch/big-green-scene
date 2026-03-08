@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { stripVideoMetadata } from "@/lib/stripVideoMetadata";
+import { isFaststart, relocateMoovToStart } from "@/lib/moovAtomUtils";
+import type { FaststartResponse } from "@/workers/faststartWorker";
+import { toast } from "sonner";
 import * as tus from "tus-js-client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
