@@ -588,7 +588,7 @@ const EmbedDialog = ({
             </div>
           </div>
           <iframe
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-same-origin"
             srcDoc={previewSrcDoc}
             className="w-full flex-1 border-none bg-neutral-100"
             style={{ minHeight: "200px" }}
