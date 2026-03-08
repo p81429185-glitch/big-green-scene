@@ -80,7 +80,7 @@ function generateCustomPlayerCode(
     : "";
 
   const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
-  const videoSrc = useSecureUrl ? "" : videoUrl;
+  const videoSrc = "";
   
   // Loading overlay HTML
   const loadingOverlayHtml = `
