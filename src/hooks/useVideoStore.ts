@@ -14,6 +14,8 @@ export interface VideoItem {
   storage_path: string;
   thumbnail_url: string | null;
   is_favorite: boolean;
+  is_processed: boolean;
+  processing_status: string;
 }
 
 export interface FolderItem {
