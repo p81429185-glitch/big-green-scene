@@ -247,19 +247,14 @@ export function useVideoStore() {
         processing_status: "pending",
       } as VideoItem;
 
-      // Trigger faststart processing in background (non-blocking)
+      // Subscribe to realtime processing status updates
+      subscribeToProcessingStatus(inserted.id);
+
+      // Trigger faststart processing in background (fire-and-forget)
       supabase.functions.invoke("process-video-faststart", {
         body: { videoId: inserted.id, storagePath },
-      }).then((result) => {
-        if (result.error) {
-          console.error("Faststart processing error:", result.error);
-        } else {
-          console.log("Faststart processing started:", result.data);
-          // Update local state when processing completes
-          setVideos((prev) => prev.map((v) => 
-            v.id === inserted.id ? { ...v, is_processed: true, processing_status: "ready" } : v
-          ));
-        }
+      }).catch((err) => {
+        console.error("Faststart processing invocation error:", err);
       });
 
       // Generate thumbnail in background (non-blocking)
