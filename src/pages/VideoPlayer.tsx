@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video/BrandedVideoPlayer";
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
-  FileText, ExternalLink, BookOpen, Loader2,
+  FileText, ExternalLink, BookOpen, Loader2, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import EmbedDialog from "@/components/dashboard/EmbedDialog";
 import ChaptersTab from "@/components/video/ChaptersTab";
 import TranscriptionTab from "@/components/video/TranscriptionTab";
@@ -57,6 +58,120 @@ const actionTabs: { icon: typeof Pencil; label: string; id: ActionTabId }[] = [
   { icon: BarChart3, label: "Analityka", id: "analityka" },
   { icon: Scissors, label: "Klipy", id: "klipy" },
 ];
+
+// Video loading wrapper with progress and timeout detection
+interface VideoLoadingWrapperProps {
+  src: string;
+  poster?: string;
+  subtitlesSrt: string | null;
+  videoId: string;
+  playerRef: React.RefObject<BrandedVideoPlayerHandle>;
+}
+
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef }: VideoLoadingWrapperProps) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadTimeout, setLoadTimeout] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [retryKey, setRetryKey] = useState(0);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const progressRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleCanPlay = useCallback(() => {
+    setIsLoading(false);
+    setLoadTimeout(false);
+    setProgress(100);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (progressRef.current) clearInterval(progressRef.current);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setIsLoading(true);
+    setLoadTimeout(false);
+    setProgress(0);
+    setRetryKey(prev => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    // Reset state when src changes
+    setIsLoading(true);
+    setLoadTimeout(false);
+    setProgress(0);
+
+    // Animated progress bar (fake progress for UX)
+    progressRef.current = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 10;
+      });
+    }, 500);
+
+    // Timeout detection - 15 seconds
+    timeoutRef.current = setTimeout(() => {
+      setLoadTimeout(true);
+      if (progressRef.current) clearInterval(progressRef.current);
+    }, 15000);
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (progressRef.current) clearInterval(progressRef.current);
+    };
+  }, [src, retryKey]);
+
+  return (
+    <div className="relative">
+      {/* Show poster/loading overlay while video loads */}
+      {isLoading && (
+        <div 
+          className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4"
+          style={poster ? { backgroundImage: `url(${poster})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        >
+          <div className={`flex flex-col items-center justify-center gap-4 w-full h-full ${poster ? 'bg-black/60' : ''} rounded-lg p-6`}>
+            {loadTimeout ? (
+              <>
+                <div className="text-center">
+                  <p className="text-lg font-medium text-foreground">
+                    Ładowanie trwa dłużej niż zwykle
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                    Plik może być wciąż przetwarzany lub jest bardzo duży. Spróbuj ponownie za chwilę.
+                  </p>
+                </div>
+                <Button onClick={handleRetry} variant="outline" className="mt-2">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Spróbuj ponownie
+                </Button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground">Ładowanie wideo...</p>
+                </div>
+                <div className="w-48">
+                  <Progress value={progress} className="h-1.5" />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Actual video player - always rendered but hidden during loading */}
+      <div className={isLoading ? 'invisible' : 'visible'}>
+        <BrandedVideoPlayer
+          key={retryKey}
+          ref={playerRef}
+          src={src}
+          poster={poster}
+          subtitlesSrt={subtitlesSrt}
+          videoId={videoId}
+          autoPlay
+          onCanPlay={handleCanPlay}
+        />
+      </div>
+    </div>
+  );
+};
 
 const VideoPlayer = () => {
   const { id } = useParams<{ id: string }>();
