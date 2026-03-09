@@ -22,6 +22,7 @@ import VideoCustomizeTab from "@/components/video/VideoCustomizeTab";
 import VideoAnalyticsTab from "@/components/video/VideoAnalyticsTab";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useFFmpegConvert } from "@/hooks/useFFmpegConvert";
 
 interface Video {
   id: string;
