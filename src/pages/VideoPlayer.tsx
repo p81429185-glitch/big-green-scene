@@ -403,6 +403,24 @@ const VideoPlayer = () => {
                 Otwórz w NotebookLM
               </a>
             </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              disabled={isConverting}
+              onClick={() => convertToMp3(videoUrl, video.file_name.replace(/\.[^.]+$/, ".mp3"))}
+            >
+              {isConverting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {progress > 0 ? `Konwertowanie... ${progress}%` : "Ładowanie konwertera..."}
+                </>
+              ) : (
+                <>
+                  <Music className="w-4 h-4 mr-2" />
+                  Pobierz MP3
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Right: sidebar panel */}
