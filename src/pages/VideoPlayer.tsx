@@ -241,6 +241,7 @@ const VideoPlayer = () => {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [subtitlesSrt, setSubtitlesSrt] = useState<string | null>(null);
   const [activeActionTab, setActiveActionTab] = useState<ActionTabId | null>(null);
+  const { convertToMp3, progress, isConverting } = useFFmpegConvert();
 
   useEffect(() => {
     if (!id) return;

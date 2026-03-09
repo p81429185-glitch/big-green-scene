@@ -37,8 +37,7 @@ export function useFFmpegConvert() {
       await ffmpeg.exec(["-i", "input.mp4", "-vn", "-acodec", "libmp3lame", "-q:a", "2", "-y", "output.mp3"]);
 
       const data = await ffmpeg.readFile("output.mp3");
-      const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
-      const blob = new Blob([uint8], { type: "audio/mpeg" });
+      const blob = new Blob([new Uint8Array((data as Uint8Array).buffer as ArrayBuffer)], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
 
       const a = document.createElement("a");
