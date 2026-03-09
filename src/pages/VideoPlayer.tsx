@@ -4,7 +4,7 @@ import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
-  FileText, ExternalLink, BookOpen, Loader2, RefreshCw,
+  FileText, ExternalLink, BookOpen, Loader2, RefreshCw, Music,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
