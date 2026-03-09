@@ -4,7 +4,7 @@ import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
-  FileText, ExternalLink, BookOpen, Loader2, RefreshCw,
+  FileText, ExternalLink, BookOpen, Loader2, RefreshCw, Music,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import VideoCustomizeTab from "@/components/video/VideoCustomizeTab";
 import VideoAnalyticsTab from "@/components/video/VideoAnalyticsTab";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useFFmpegConvert } from "@/hooks/useFFmpegConvert";
 
 interface Video {
   id: string;
@@ -240,6 +241,7 @@ const VideoPlayer = () => {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [subtitlesSrt, setSubtitlesSrt] = useState<string | null>(null);
   const [activeActionTab, setActiveActionTab] = useState<ActionTabId | null>(null);
+  const { convertToMp3, progress, isConverting } = useFFmpegConvert();
 
   useEffect(() => {
     if (!id) return;
@@ -402,6 +404,24 @@ const VideoPlayer = () => {
                 <ExternalLink className="h-4 w-4 mr-1.5" />
                 Otwórz w NotebookLM
               </a>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              disabled={isConverting}
+              onClick={() => convertToMp3(videoUrl, video.file_name.replace(/\.[^.]+$/, ".mp3"))}
+            >
+              {isConverting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {progress > 0 ? `Konwertowanie... ${progress}%` : "Ładowanie konwertera..."}
+                </>
+              ) : (
+                <>
+                  <Music className="w-4 h-4 mr-2" />
+                  Pobierz MP3
+                </>
+              )}
             </Button>
           </div>
 
