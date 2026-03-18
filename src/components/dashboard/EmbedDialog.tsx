@@ -268,6 +268,7 @@ const EmbedDialog = ({
         sizeMode, embedWidth, embedHeight,
         videoId || "", supabaseUrl, anonKey, thumbnailUrl,
         !(domainRestricted && !!allowedDomain.trim()),
+        storage_path || "",
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
