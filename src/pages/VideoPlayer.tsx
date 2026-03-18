@@ -106,8 +106,17 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setIsLoading(true);
     setLoadTimeout(false);
     setVideoError(false);
+    setIsBuffering(false);
     setProgress(0);
     setRetryKey(prev => prev + 1);
+  }, []);
+
+  const handleWaiting = useCallback(() => {
+    setIsBuffering(true);
+  }, []);
+
+  const handlePlaying = useCallback(() => {
+    setIsBuffering(false);
   }, []);
 
   // Update processing banner when isProcessed changes (via realtime)
