@@ -318,7 +318,16 @@ const AdminUsersView = () => {
           await supabase
             .from("videos")
             .update({ is_processed: true, processing_status: "ready" })
-            .eq("id", video.id);
+          .eq("id", video.id);
+
+          // Thumbnail regeneration (already-faststart path)
+          const thumbOk1 = await generateAndUploadThumbnail(video.id, video.storage_path);
+          setProcessing((prev) => ({
+            ...prev,
+            currentVideo: thumbOk1
+              ? `${video.title} — miniaturka wygenerowana ✓`
+              : `${video.title} — miniaturka: błąd (pominięto)`,
+          }));
 
           successCount++;
           setProcessing((prev) => ({
