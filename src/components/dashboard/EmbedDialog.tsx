@@ -215,6 +215,7 @@ const EmbedDialog = ({
   videoId,
   thumbnailUrl,
   transcription,
+  storage_path,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
