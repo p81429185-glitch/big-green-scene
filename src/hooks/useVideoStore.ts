@@ -227,13 +227,19 @@ export function useVideoStore() {
           }
         }, 5000);
 
-        // Final timeout: 30 seconds
+        // Final timeout: dynamic based on file size
+        const getTimeoutMs = (f: File): number => {
+          const mb = f.size / (1024 * 1024);
+          if (mb < 100) return 30000;
+          if (mb < 500) return 60000;
+          return 120000;
+        };
         setTimeout(() => {
           if (!resolved) {
             console.log("Thumbnail: final timeout reached");
             safeResolve(null);
           }
-        }, 30000);
+        }, getTimeoutMs(file));
       });
     } catch {
       return null;
