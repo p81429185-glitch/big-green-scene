@@ -87,6 +87,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setProgress(100);
     setShowProcessingBanner(false);
     setVideoError(false);
+    setIsBuffering(false);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
   }, []);
