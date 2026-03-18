@@ -181,7 +181,17 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
       {/* Non-blocking amber processing banner */}
       {showProcessingBanner && (
         <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg">
-          Optymalizacja w toku — pierwsze uruchomienie może potrwać dłużej
+          Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
+        </div>
+      )}
+
+      {/* Buffering spinner overlay */}
+      {isBuffering && !isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-2 bg-black/60 rounded-lg px-6 py-4">
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
+            <span className="text-white text-sm font-medium">Buforowanie...</span>
+          </div>
         </div>
       )}
 
