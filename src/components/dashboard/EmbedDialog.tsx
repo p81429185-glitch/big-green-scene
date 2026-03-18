@@ -43,6 +43,7 @@ interface EmbedDialogProps {
   videoId?: string;
   thumbnailUrl: string | null;
   transcription?: string | null;
+  storage_path?: string;
 }
 
 function generateCustomPlayerCode(
