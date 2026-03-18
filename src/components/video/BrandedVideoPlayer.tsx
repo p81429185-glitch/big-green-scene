@@ -45,6 +45,8 @@ interface BrandedVideoPlayerProps {
   onTimeUpdate?: (time: number) => void;
   onCanPlay?: () => void;
   onError?: () => void;
+  onWaiting?: () => void;
+  onPlaying?: () => void;
 }
 
 export interface BrandedVideoPlayerHandle {
@@ -53,7 +55,7 @@ export interface BrandedVideoPlayerHandle {
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
@@ -238,19 +240,29 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       const onErrorHandler = () => {
         onError?.();
       };
+      const onWaitingHandler = () => {
+        onWaiting?.();
+      };
+      const onPlayingHandler = () => {
+        onPlaying?.();
+      };
       v.addEventListener("play", onPlay);
       v.addEventListener("pause", onPause);
       v.addEventListener("loadedmetadata", onLoaded);
       v.addEventListener("canplay", onCanPlayHandler);
       v.addEventListener("error", onErrorHandler);
+      v.addEventListener("waiting", onWaitingHandler);
+      v.addEventListener("playing", onPlayingHandler);
       return () => {
         v.removeEventListener("play", onPlay);
         v.removeEventListener("pause", onPause);
         v.removeEventListener("loadedmetadata", onLoaded);
         v.removeEventListener("canplay", onCanPlayHandler);
         v.removeEventListener("error", onErrorHandler);
+        v.removeEventListener("waiting", onWaitingHandler);
+        v.removeEventListener("playing", onPlayingHandler);
       };
-    }, [onCanPlay, onError]);
+    }, [onCanPlay, onError, onWaiting, onPlaying]);
 
     // Fullscreen listener
     useEffect(() => {
