@@ -43,6 +43,7 @@ interface EmbedDialogProps {
   videoId?: string;
   thumbnailUrl: string | null;
   transcription?: string | null;
+  storage_path?: string;
 }
 
 function generateCustomPlayerCode(
@@ -60,6 +61,7 @@ function generateCustomPlayerCode(
   anonKey: string,
   thumbnailUrl: string | null,
   skipDomainCheck: boolean,
+  storagePath: string,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
@@ -80,7 +82,7 @@ function generateCustomPlayerCode(
     : "";
 
   const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
-  const videoSrc = "";
+  const directUrl = `${supabaseUrl}/storage/v1/object/public/videos/${storagePath}`;
   
   // Loading overlay HTML
   const loadingOverlayHtml = `
@@ -92,52 +94,56 @@ function generateCustomPlayerCode(
   </div>
   <style>@keyframes spin${uid}{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>`;
 
-  // Secure fetch script with localStorage caching (50-minute TTL)
-  const secureFetchScript = `
+  // For non-domain-restricted: no fetch needed, use direct public URL
+  // For domain-restricted: fetch signed URL from Edge Function (no caching to avoid stale URLs)
+  const secureFetchScript = skipDomainCheck ? "" : `
     (function(){
-      var cacheKey = "embed_url_${videoId}";
-      var cached = null;
-      try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e){}
-      
+      var errEl = null;
       function setVideoSrc(url) {
         var v = document.getElementById("${vid}");
         if(v) v.src = url;
+        if(errEl) { errEl.remove(); errEl = null; }
       }
       
       function fetchAndCache() {
+        if(errEl) { errEl.remove(); errEl = null; }
         fetch("${supabaseUrl}/functions/v1/get-embed-url", {
           method: "POST",
           headers: {"Content-Type":"application/json","apikey":"${anonKey}"},
-          body: JSON.stringify({video_id:"${videoId}"${skipDomainCheck ? ',skip_domain_check:true' : ''}})
+          body: JSON.stringify({video_id:"${videoId}"})
         })
         .then(function(r){ return r.json(); })
         .then(function(d){
           if(d.url){
-            try {
-              localStorage.setItem(cacheKey, JSON.stringify({url: d.url, ts: Date.now()}));
-            } catch(e){}
             setVideoSrc(d.url);
           } else {
-            document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Ten film nie jest dostępny na tej stronie.</p>';
+            showError('Ten film nie jest dostępny na tej stronie.');
           }
         })
         .catch(function(){
-          document.getElementById("${uid}").innerHTML = '<p style="color:#999;text-align:center;padding:40px;font-family:sans-serif;">Nie udało się załadować filmu.</p>';
+          showError('Nie udało się załadować filmu.');
         });
       }
-      
-      // Check cache validity (50 minutes = 3000000ms)
-      if(cached && cached.url && cached.ts && (Date.now() - cached.ts) < 3000000) {
-        setVideoSrc(cached.url);
-      } else {
-        fetchAndCache();
+
+      function showError(msg) {
+        var w = document.getElementById("${uid}");
+        if(!w) return;
+        var lo = document.getElementById("${loadingOverlay}");
+        if(lo) lo.style.display = "none";
+        errEl = document.createElement("div");
+        errEl.style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20;background:rgba(0,0,0,0.85);";
+        errEl.innerHTML = '<p style="color:#999;text-align:center;font-family:sans-serif;margin-bottom:12px;">' + msg + '</p><button onclick="fetchAndCache()" style="background:${brandColor};color:${brandIconColor};border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-family:sans-serif;font-size:13px;">Spróbuj ponownie</button>';
+        w.appendChild(errEl);
       }
+
+      window.fetchAndCache = fetchAndCache;
+      fetchAndCache();
     })();`;
 
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video preload="metadata"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <video${skipDomainCheck ? ` src="${directUrl}"` : ""} preload="metadata"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
@@ -209,6 +215,7 @@ const EmbedDialog = ({
   videoId,
   thumbnailUrl,
   transcription,
+  storage_path,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
@@ -261,6 +268,7 @@ const EmbedDialog = ({
         sizeMode, embedWidth, embedHeight,
         videoId || "", supabaseUrl, anonKey, thumbnailUrl,
         !(domainRestricted && !!allowedDomain.trim()),
+        storage_path || "",
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {

@@ -536,6 +536,7 @@ const VideoPlayer = () => {
         videoId={video.id}
         thumbnailUrl={video.thumbnail_url}
         transcription={transcription}
+        storage_path={video.storage_path}
       />
     </div>
   );
