@@ -55,7 +55,7 @@ export interface BrandedVideoPlayerHandle {
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
