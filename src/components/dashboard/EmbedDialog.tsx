@@ -61,6 +61,7 @@ function generateCustomPlayerCode(
   anonKey: string,
   thumbnailUrl: string | null,
   skipDomainCheck: boolean,
+  storagePath: string,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
