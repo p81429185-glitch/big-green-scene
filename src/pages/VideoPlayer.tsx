@@ -244,6 +244,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
           autoPlay
           onCanPlay={handleCanPlay}
           onError={handleError}
+          onWaiting={handleWaiting}
+          onPlaying={handlePlaying}
         />
       </div>
     </div>
