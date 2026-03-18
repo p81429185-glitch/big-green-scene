@@ -175,6 +175,81 @@ const AdminUsersView = () => {
     });
   };
 
+  const generateAndUploadThumbnail = async (videoId: string, storagePath: string): Promise<boolean> => {
+    let objectUrl: string | null = null;
+    let videoEl: HTMLVideoElement | null = null;
+    try {
+      // 1. Fetch the (now faststart) file from storage
+      const { data: urlData } = supabase.storage.from("videos").getPublicUrl(storagePath);
+      const resp = await fetch(urlData.publicUrl);
+      if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+      const blob = await resp.blob();
+
+      // 2. Create video element
+      videoEl = document.createElement("video");
+      objectUrl = URL.createObjectURL(blob);
+      videoEl.src = objectUrl;
+      videoEl.crossOrigin = "anonymous";
+      videoEl.preload = "metadata";
+      videoEl.muted = true;
+
+      // 3. Wait for loadeddata
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("loadeddata timeout")), 30000);
+        videoEl!.addEventListener("loadeddata", () => { clearTimeout(timeout); resolve(); }, { once: true });
+        videoEl!.addEventListener("error", () => { clearTimeout(timeout); reject(new Error("video load error")); }, { once: true });
+        videoEl!.load();
+      });
+
+      // 4. Seek
+      videoEl.currentTime = Math.min(1, videoEl.duration / 2);
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("seeked timeout")), 15000);
+        videoEl!.addEventListener("seeked", () => { clearTimeout(timeout); resolve(); }, { once: true });
+      });
+
+      // 5. Draw to canvas
+      const canvas = document.createElement("canvas");
+      canvas.width = 320;
+      canvas.height = 180;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("No canvas context");
+      ctx.drawImage(videoEl, 0, 0, 320, 180);
+
+      // 6. Export as JPEG
+      const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("toBlob returned null"))),
+          "image/jpeg",
+          0.7
+        );
+      });
+
+      // 7. Upload to thumbnails bucket
+      const thumbPath = `${videoId}.jpg`;
+      const { error: uploadErr } = await supabase.storage
+        .from("thumbnails")
+        .upload(thumbPath, jpegBlob, { upsert: true, contentType: "image/jpeg" });
+      if (uploadErr) throw new Error(`Thumbnail upload: ${uploadErr.message}`);
+
+      // 8. Get public URL & update DB
+      const { data: thumbUrlData } = supabase.storage.from("thumbnails").getPublicUrl(thumbPath);
+      await supabase
+        .from("videos")
+        .update({ thumbnail_url: thumbUrlData.publicUrl })
+        .eq("id", videoId);
+
+      return true;
+    } catch (err) {
+      console.error(`Thumbnail generation failed for ${videoId}:`, err);
+      return false;
+    } finally {
+      // 9. Cleanup
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (videoEl) videoEl.remove();
+    }
+  };
+
   const handleReprocessVideos = async () => {
     abortRef.current = false;
 
