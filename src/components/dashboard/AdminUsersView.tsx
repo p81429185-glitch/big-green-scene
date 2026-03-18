@@ -361,6 +361,15 @@ const AdminUsersView = () => {
           .update({ is_processed: true, processing_status: "ready" })
           .eq("id", video.id);
 
+        // Thumbnail regeneration (main path)
+        const thumbOk2 = await generateAndUploadThumbnail(video.id, video.storage_path);
+        setProcessing((prev) => ({
+          ...prev,
+          currentVideo: thumbOk2
+            ? `${video.title} — miniaturka wygenerowana ✓`
+            : `${video.title} — miniaturka: błąd (pominięto)`,
+        }));
+
         successCount++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
