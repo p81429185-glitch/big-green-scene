@@ -82,7 +82,7 @@ function generateCustomPlayerCode(
     : "";
 
   const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
-  const videoSrc = "";
+  const directUrl = `${supabaseUrl}/storage/v1/object/public/videos/${storagePath}`;
   
   // Loading overlay HTML
   const loadingOverlayHtml = `
