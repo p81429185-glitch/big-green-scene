@@ -71,7 +71,7 @@ interface VideoLoadingWrapperProps {
   fileSize: number;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -81,6 +81,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const [videoError, setVideoError] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [canPlayFired, setCanPlayFired] = useState(false);
+  const [isStalled, setIsStalled] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
   const processingDelayRef = useRef<NodeJS.Timeout | null>(null);
@@ -102,6 +103,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setCanPlayFired(true);
     setVideoError(false);
     setIsBuffering(false);
+    setIsStalled(false);
     clearBufferTimeout();
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
@@ -122,12 +124,19 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setLoadTimeout(false);
     setVideoError(false);
     setIsBuffering(false);
+    setIsStalled(false);
     setShowProcessingOverlay(false);
     setCanPlayFired(false);
     setProgress(0);
     clearBufferTimeout();
     setRetryKey(prev => prev + 1);
   }, [clearBufferTimeout]);
+
+  const handleManualRetry = useCallback(() => {
+    setIsStalled(false);
+    setIsBuffering(false);
+    playerRef.current?.reload();
+  }, [playerRef]);
 
   const handleWaiting = useCallback(() => {
     clearBufferTimeout();
@@ -139,7 +148,18 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const handlePlaying = useCallback(() => {
     clearBufferTimeout();
     setIsBuffering(false);
+    setIsStalled(false);
   }, [clearBufferTimeout]);
+
+  const handleStalled = useCallback(() => {
+    setIsStalled(true);
+    setIsBuffering(true);
+  }, []);
+
+  const handleProgressResume = useCallback(() => {
+    setIsStalled(false);
+    setIsBuffering(false);
+  }, []);
 
   // Delayed processing overlay — only show after 10s if canplay hasn't fired and not processed
   useEffect(() => {
