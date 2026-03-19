@@ -41,6 +41,7 @@ interface Video {
   mux_asset_id: string | null;
   mux_playback_id: string | null;
   mux_status: string;
+  audio_track_path: string | null;
 }
 
 interface Folder {
