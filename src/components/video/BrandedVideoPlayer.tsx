@@ -44,6 +44,7 @@ interface BrandedVideoPlayerProps {
   autoPlay?: boolean;
   useHls?: boolean;
   videoId?: string;
+  audioTrackUrl?: string | null;
   onTimeUpdate?: (time: number) => void;
   onCanPlay?: () => void;
   onError?: () => void;
