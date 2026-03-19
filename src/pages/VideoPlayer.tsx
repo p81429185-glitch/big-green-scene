@@ -620,6 +620,30 @@ const VideoPlayer = () => {
                         <p className="text-sm font-medium truncate">{video.file_name}</p>
                       </div>
                     </div>
+                    <Separator />
+                    <div className="flex items-center gap-3">
+                      <Monitor className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground">Orientacja</p>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={video.aspect_ratio || "16:9"}
+                            onChange={async (e) => {
+                              const newAr = e.target.value;
+                              await supabase.from("videos").update({ aspect_ratio: newAr } as any).eq("id", video.id);
+                              setVideo((prev) => prev ? { ...prev, aspect_ratio: newAr } : prev);
+                              toast.success("Orientacja zmieniona");
+                            }}
+                            className="text-sm font-medium bg-transparent border border-border rounded px-2 py-0.5 cursor-pointer"
+                          >
+                            <option value="16:9">Poziomy 16:9</option>
+                            <option value="9:16">Pionowy 9:16</option>
+                            <option value="1:1">Kwadrat 1:1</option>
+                            <option value="4:3">Klasyczny 4:3</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
 
