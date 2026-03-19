@@ -340,10 +340,10 @@ export function useVideoStore() {
           const headerSlice = cleanFile.slice(0, 65536);
           const headerBuffer = await headerSlice.arrayBuffer();
 
-          if (isFaststart(headerBuffer)) {
-            // Already optimized
-            isProcessed = true;
-          } else {
+          const isFast = isFaststart(headerBuffer);
+          console.log("Is faststart:", isFast);
+
+          if (isFast) {
             // Need to process — read full file
             const fullBuffer = await cleanFile.arrayBuffer();
             const SIZE_100MB = 100 * 1024 * 1024;
