@@ -231,6 +231,9 @@ export type Database = {
           id: string
           is_favorite: boolean
           is_processed: boolean
+          mux_asset_id: string | null
+          mux_playback_id: string | null
+          mux_status: string
           plays: number
           processing_status: string
           size: number
@@ -247,6 +250,9 @@ export type Database = {
           id?: string
           is_favorite?: boolean
           is_processed?: boolean
+          mux_asset_id?: string | null
+          mux_playback_id?: string | null
+          mux_status?: string
           plays?: number
           processing_status?: string
           size?: number
@@ -263,6 +269,9 @@ export type Database = {
           id?: string
           is_favorite?: boolean
           is_processed?: boolean
+          mux_asset_id?: string | null
+          mux_playback_id?: string | null
+          mux_status?: string
           plays?: number
           processing_status?: string
           size?: number
