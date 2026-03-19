@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import type { FolderItem } from "@/hooks/useVideoStore";
 
+import type { MuxConnectionStatus } from "@/components/dashboard/MuxSettingsView";
+
 export type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux";
 
 const navItems = [
