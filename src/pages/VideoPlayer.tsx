@@ -77,6 +77,7 @@ interface VideoLoadingWrapperProps {
   muxStatus: string;
   muxPlaybackId: string | null;
   muxAssetId: string | null;
+  audioTrackUrl: string | null;
 }
 
 const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId }: VideoLoadingWrapperProps) => {
