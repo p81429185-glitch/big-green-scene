@@ -68,6 +68,7 @@ interface VideoLoadingWrapperProps {
   videoId: string;
   playerRef: React.RefObject<BrandedVideoPlayerHandle>;
   isProcessed: boolean;
+  fileSize: number;
 }
 
 const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed }: VideoLoadingWrapperProps) => {
