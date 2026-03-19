@@ -502,6 +502,7 @@ const VideoPlayer = () => {
               videoId={id}
               playerRef={playerRef}
               isProcessed={video.is_processed}
+              fileSize={video.size}
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
