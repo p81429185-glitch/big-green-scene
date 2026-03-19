@@ -399,7 +399,8 @@ export function useVideoStore() {
           storage_path: storagePath,
           is_processed: isProcessed,
           processing_status: isProcessed ? "ready" : "pending",
-        })
+          aspect_ratio: aspectRatio || "16:9",
+        } as any)
         .select()
         .single();
 
