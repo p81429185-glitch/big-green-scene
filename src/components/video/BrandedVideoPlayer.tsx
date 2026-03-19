@@ -260,13 +260,38 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     useEffect(() => {
       const v = videoRef.current;
       if (!v) return;
-      const onPlay = () => setPlaying(true);
-      const onPause = () => setPlaying(false);
+      const onPlay = () => {
+        setPlaying(true);
+        // Start stall detection: if no timeupdate within 5s, video is stalled
+        clearStallTimer();
+        stallTimerRef.current = setTimeout(() => {
+          if (v.currentTime === 0 || v.currentTime === lastTimeRef.current) {
+            // Stalled: pause and notify
+            v.pause();
+            setPlaying(false);
+            onStalled?.();
+          }
+        }, 5000);
+        // Start frozen detection: every 3s check if currentTime hasn't changed
+        clearFrozenTimer();
+        frozenTimerRef.current = setInterval(() => {
+          if (!v.paused && v.currentTime === lastTimeRef.current) {
+            onStalled?.();
+          } else if (!v.paused && v.currentTime > lastTimeRef.current) {
+            onProgressResume?.();
+          }
+          lastTimeRef.current = v.currentTime;
+        }, 3000);
+      };
+      const onPause = () => {
+        setPlaying(false);
+        clearStallTimer();
+        clearFrozenTimer();
+      };
       const onLoaded = () => {
         setDuration(v.duration);
         setVideoWidth(v.videoWidth);
         setVideoHeight(v.videoHeight);
-        // Default to native resolution label
         if (v.videoWidth >= 3840) setSelectedQuality("4K");
         else if (v.videoWidth >= 1920) setSelectedQuality("1080p");
         else if (v.videoWidth >= 1280) setSelectedQuality("720p");
@@ -299,8 +324,10 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         v.removeEventListener("error", onErrorHandler);
         v.removeEventListener("waiting", onWaitingHandler);
         v.removeEventListener("playing", onPlayingHandler);
+        clearStallTimer();
+        clearFrozenTimer();
       };
-    }, [onCanPlay, onError, onWaiting, onPlaying]);
+    }, [onCanPlay, onError, onWaiting, onPlaying, onStalled, onProgressResume, clearStallTimer, clearFrozenTimer]);
 
     // Fullscreen listener
     useEffect(() => {
