@@ -68,9 +68,10 @@ interface VideoLoadingWrapperProps {
   videoId: string;
   playerRef: React.RefObject<BrandedVideoPlayerHandle>;
   isProcessed: boolean;
+  fileSize: number;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -80,6 +81,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const [videoError, setVideoError] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [canPlayFired, setCanPlayFired] = useState(false);
+  const [isStalled, setIsStalled] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
   const processingDelayRef = useRef<NodeJS.Timeout | null>(null);
@@ -101,6 +103,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setCanPlayFired(true);
     setVideoError(false);
     setIsBuffering(false);
+    setIsStalled(false);
     clearBufferTimeout();
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
@@ -121,12 +124,19 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setLoadTimeout(false);
     setVideoError(false);
     setIsBuffering(false);
+    setIsStalled(false);
     setShowProcessingOverlay(false);
     setCanPlayFired(false);
     setProgress(0);
     clearBufferTimeout();
     setRetryKey(prev => prev + 1);
   }, [clearBufferTimeout]);
+
+  const handleManualRetry = useCallback(() => {
+    setIsStalled(false);
+    setIsBuffering(false);
+    playerRef.current?.reload();
+  }, [playerRef]);
 
   const handleWaiting = useCallback(() => {
     clearBufferTimeout();
@@ -138,7 +148,18 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const handlePlaying = useCallback(() => {
     clearBufferTimeout();
     setIsBuffering(false);
+    setIsStalled(false);
   }, [clearBufferTimeout]);
+
+  const handleStalled = useCallback(() => {
+    setIsStalled(true);
+    setIsBuffering(true);
+  }, []);
+
+  const handleProgressResume = useCallback(() => {
+    setIsStalled(false);
+    setIsBuffering(false);
+  }, []);
 
   // Delayed processing overlay — only show after 10s if canplay hasn't fired and not processed
   useEffect(() => {
@@ -215,73 +236,99 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     );
   }
 
+  const fileSizeMB = Math.round(fileSize / (1024 * 1024));
+
   return (
-    <div className="relative">
-      {/* Non-blocking amber processing banner */}
-      {showProcessingBanner && (
-        <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg pointer-events-none">
-          Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
+    <div>
+      {/* Persistent banner ABOVE player for unprocessed files */}
+      {!isProcessed && (
+        <div className="mb-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-medium text-center py-2 px-3">
+          Ten film nie jest zoptymalizowany — pierwsze odtworzenie może wymagać pobrania całego pliku (~{fileSizeMB}MB)
         </div>
       )}
 
-      {/* Buffering bar — slim YouTube-style top bar */}
-      {isBuffering && !isLoading && (
-        <div className="absolute top-0 left-0 right-0 z-10 h-[3px] pointer-events-none overflow-hidden rounded-t-lg">
-          <div className="h-full w-1/3 bg-primary animate-[bufferSlide_1.5s_ease-in-out_infinite] rounded-full" />
-        </div>
-      )}
-
-      {/* Show poster/loading overlay while video loads */}
-      {isLoading && (
-        <div 
-          className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4"
-          style={poster ? { backgroundImage: `url(${poster})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-        >
-          <div className={`flex flex-col items-center justify-center gap-4 w-full h-full ${poster ? 'bg-black/60' : ''} rounded-lg p-6`}>
-            {loadTimeout ? (
-              <>
-                <div className="text-center">
-                  <p className="text-lg font-medium text-foreground">
-                    Ładowanie trwa dłużej niż zwykle
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                    Plik może być wciąż przetwarzany lub jest bardzo duży. Spróbuj ponownie za chwilę.
-                  </p>
-                </div>
-                <Button onClick={handleRetry} variant="outline" className="mt-2">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Spróbuj ponownie
-                </Button>
-              </>
-            ) : (
-              <>
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <div className="text-center">
-                  <p className="text-sm font-medium text-foreground">Ładowanie wideo...</p>
-                </div>
-                <div className="w-48">
-                  <Progress value={progress} className="h-1.5" />
-                </div>
-              </>
-            )}
+      <div className="relative">
+        {/* Non-blocking amber processing banner */}
+        {showProcessingBanner && (
+          <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg pointer-events-none">
+            Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
           </div>
+        )}
+
+        {/* Buffering bar — slim YouTube-style top bar */}
+        {isBuffering && !isLoading && (
+          <div className="absolute top-0 left-0 right-0 z-10 h-[3px] pointer-events-none overflow-hidden rounded-t-lg">
+            <div className="h-full w-1/3 bg-primary animate-[bufferSlide_1.5s_ease-in-out_infinite] rounded-full" />
+          </div>
+        )}
+
+        {/* Show poster/loading overlay while video loads */}
+        {isLoading && (
+          <div 
+            className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4"
+            style={poster ? { backgroundImage: `url(${poster})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+          >
+            <div className={`flex flex-col items-center justify-center gap-4 w-full h-full ${poster ? 'bg-black/60' : ''} rounded-lg p-6`}>
+              {loadTimeout ? (
+                <>
+                  <div className="text-center">
+                    <p className="text-lg font-medium text-foreground">
+                      Ładowanie trwa dłużej niż zwykle
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                      Plik może być wciąż przetwarzany lub jest bardzo duży. Spróbuj ponownie za chwilę.
+                    </p>
+                  </div>
+                  <Button onClick={handleRetry} variant="outline" className="mt-2">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Spróbuj ponownie
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground">Ładowanie wideo...</p>
+                  </div>
+                  <div className="w-48">
+                    <Progress value={progress} className="h-1.5" />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actual video player - always rendered but hidden during loading */}
+        <div className={isLoading ? 'invisible' : 'visible'}>
+          <BrandedVideoPlayer
+            key={retryKey}
+            ref={playerRef}
+            src={src}
+            subtitlesSrt={subtitlesSrt}
+            videoId={videoId}
+            onCanPlay={handleCanPlay}
+            onError={handleError}
+            onWaiting={handleWaiting}
+            onPlaying={handlePlaying}
+            onStalled={handleStalled}
+            onProgressResume={handleProgressResume}
+          />
+        </div>
+      </div>
+
+      {/* Stall message BELOW the player */}
+      {isStalled && !isLoading && (
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-muted border border-border px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            Film ładuje się — to może potrwać chwilę przy pierwszym odtwarzaniu
+          </p>
+          <Button onClick={handleManualRetry} variant="outline" size="sm" className="shrink-0">
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Spróbuj ponownie
+          </Button>
         </div>
       )}
-
-      {/* Actual video player - always rendered but hidden during loading */}
-      <div className={isLoading ? 'invisible' : 'visible'}>
-        <BrandedVideoPlayer
-          key={retryKey}
-          ref={playerRef}
-          src={src}
-          subtitlesSrt={subtitlesSrt}
-          videoId={videoId}
-          onCanPlay={handleCanPlay}
-          onError={handleError}
-          onWaiting={handleWaiting}
-          onPlaying={handlePlaying}
-        />
-      </div>
     </div>
   );
 };
@@ -455,6 +502,7 @@ const VideoPlayer = () => {
               videoId={id}
               playerRef={playerRef}
               isProcessed={video.is_processed}
+              fileSize={video.size}
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">

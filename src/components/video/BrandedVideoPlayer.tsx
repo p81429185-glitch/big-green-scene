@@ -47,15 +47,18 @@ interface BrandedVideoPlayerProps {
   onError?: () => void;
   onWaiting?: () => void;
   onPlaying?: () => void;
+  onStalled?: () => void;
+  onProgressResume?: () => void;
 }
 
 export interface BrandedVideoPlayerHandle {
   seek: (seconds: number) => void;
   play: () => void;
+  reload: () => void;
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying, onStalled, onProgressResume }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
@@ -106,7 +109,33 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         }
       },
       play: () => videoRef.current?.play(),
+      reload: () => {
+        const v = videoRef.current;
+        if (!v) return;
+        v.src = src;
+        v.load();
+        v.play();
+      },
     }));
+
+    // Stall detection: 5s after play with no timeupdate = stalled
+    const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastTimeRef = useRef<number>(0);
+    const frozenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const clearStallTimer = useCallback(() => {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+    }, []);
+
+    const clearFrozenTimer = useCallback(() => {
+      if (frozenTimerRef.current) {
+        clearInterval(frozenTimerRef.current);
+        frozenTimerRef.current = null;
+      }
+    }, []);
 
     const togglePlay = useCallback(() => {
       const v = videoRef.current;
@@ -129,7 +158,16 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       const v = videoRef.current;
       if (!v) return;
       setCurrentTime(v.currentTime);
+      lastTimeRef.current = v.currentTime;
       onTimeUpdate?.(v.currentTime);
+
+      // Clear stall timer — timeupdate means frames are progressing
+      clearStallTimer();
+
+      // If we were stalled and now progressing, notify parent
+      if (v.currentTime > 0) {
+        onProgressResume?.();
+      }
 
       if (segments.length > 0) {
         const active = segments.find(
@@ -137,7 +175,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         );
         setCurrentSubtitle(active?.text ?? "");
       }
-    }, [segments, onTimeUpdate]);
+    }, [segments, onTimeUpdate, clearStallTimer, onProgressResume]);
 
     const calcSeekPosition = useCallback((clientX: number) => {
       const bar = progressBarRef.current;
@@ -222,13 +260,38 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     useEffect(() => {
       const v = videoRef.current;
       if (!v) return;
-      const onPlay = () => setPlaying(true);
-      const onPause = () => setPlaying(false);
+      const onPlay = () => {
+        setPlaying(true);
+        // Start stall detection: if no timeupdate within 5s, video is stalled
+        clearStallTimer();
+        stallTimerRef.current = setTimeout(() => {
+          if (v.currentTime === 0 || v.currentTime === lastTimeRef.current) {
+            // Stalled: pause and notify
+            v.pause();
+            setPlaying(false);
+            onStalled?.();
+          }
+        }, 5000);
+        // Start frozen detection: every 3s check if currentTime hasn't changed
+        clearFrozenTimer();
+        frozenTimerRef.current = setInterval(() => {
+          if (!v.paused && v.currentTime === lastTimeRef.current) {
+            onStalled?.();
+          } else if (!v.paused && v.currentTime > lastTimeRef.current) {
+            onProgressResume?.();
+          }
+          lastTimeRef.current = v.currentTime;
+        }, 3000);
+      };
+      const onPause = () => {
+        setPlaying(false);
+        clearStallTimer();
+        clearFrozenTimer();
+      };
       const onLoaded = () => {
         setDuration(v.duration);
         setVideoWidth(v.videoWidth);
         setVideoHeight(v.videoHeight);
-        // Default to native resolution label
         if (v.videoWidth >= 3840) setSelectedQuality("4K");
         else if (v.videoWidth >= 1920) setSelectedQuality("1080p");
         else if (v.videoWidth >= 1280) setSelectedQuality("720p");
@@ -261,8 +324,10 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         v.removeEventListener("error", onErrorHandler);
         v.removeEventListener("waiting", onWaitingHandler);
         v.removeEventListener("playing", onPlayingHandler);
+        clearStallTimer();
+        clearFrozenTimer();
       };
-    }, [onCanPlay, onError, onWaiting, onPlaying]);
+    }, [onCanPlay, onError, onWaiting, onPlaying, onStalled, onProgressResume, clearStallTimer, clearFrozenTimer]);
 
     // Fullscreen listener
     useEffect(() => {
