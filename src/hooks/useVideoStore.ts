@@ -46,7 +46,7 @@ export function useVideoStore() {
   const fetchVideos = useCallback(async () => {
     const { data } = await supabase
       .from("videos")
-      .select("id,title,file_name,size,folder_id,plays,storage_path,thumbnail_url,created_at,is_favorite,is_processed,processing_status")
+      .select("id,title,file_name,size,folder_id,plays,storage_path,thumbnail_url,created_at,is_favorite,is_processed,processing_status,audio_track_path")
       .order("created_at", { ascending: false });
     if (data) setVideos(data as VideoItem[]);
   }, []);
