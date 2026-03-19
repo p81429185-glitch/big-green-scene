@@ -215,6 +215,7 @@ const Dashboard = () => {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onFilesSelected={handleFilesSelected}
+        onDualFilesSelected={handleDualFilesSelected}
       />
       <CreateFolderDialog
         open={folderOpen}
