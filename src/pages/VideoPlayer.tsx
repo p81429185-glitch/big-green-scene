@@ -38,6 +38,9 @@ interface Video {
   transcription: string | null;
   is_processed: boolean;
   processing_status: string;
+  mux_asset_id: string | null;
+  mux_playback_id: string | null;
+  mux_status: string;
 }
 
 interface Folder {
