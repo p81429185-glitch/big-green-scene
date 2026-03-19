@@ -6,13 +6,14 @@ export interface QueueItem {
   fileName: string;
   fileSize: number;
   folderId: string | null;
+  aspectRatio: string;
   progress: number;
   status: "waiting" | "cleaning" | "uploading" | "processing" | "done" | "error";
   error?: string;
 }
 
 interface UseUploadQueueOptions {
-  uploadVideo: (file: File, folderId: string | null, onProgress: (pct: number) => void) => Promise<any>;
+  uploadVideo: (file: File, folderId: string | null, onProgress: (pct: number) => void, aspectRatio?: string) => Promise<any>;
 }
 
 export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
@@ -20,13 +21,14 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
   const [minimized, setMinimized] = useState(false);
   const processingRef = useRef(false);
 
-  const addFiles = useCallback((files: File[], folderId: string | null) => {
+  const addFiles = useCallback((files: File[], folderId: string | null, aspectRatio: string = "16:9") => {
     const items: QueueItem[] = Array.from(files).slice(0, 20).map((file) => ({
       id: crypto.randomUUID(),
       file,
       fileName: file.name,
       fileSize: file.size,
       folderId,
+      aspectRatio,
       progress: 0,
       status: "waiting" as const,
     }));
@@ -65,7 +67,6 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
       );
 
       try {
-        // stripVideoMetadata is called inside uploadVideo, status will change to uploading via callback
         await uploadVideo(nextItem.file, nextItem.folderId, (pct) => {
           setQueue((prev) =>
             prev.map((i) => {
@@ -73,14 +74,13 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
               if (pct >= 95 && i.status !== "processing") {
                 return { ...i, progress: pct, status: "processing" as const };
               }
-              // First progress call means upload started — switch from cleaning to uploading
               if (i.status === "cleaning") {
                 return { ...i, progress: pct, status: "uploading" as const };
               }
               return { ...i, progress: pct };
             })
           );
-        });
+        }, nextItem.aspectRatio);
         setQueue((prev) =>
           prev.map((i) => (i.id === nextItem.id ? { ...i, status: "done" as const, progress: 100 } : i))
         );
