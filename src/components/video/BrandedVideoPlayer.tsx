@@ -497,6 +497,10 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           style={isFullscreen ? {} : videoStyle}
           playsInline
         />
+        {/* Hidden audio element for separate audio track */}
+        {hasAudioTrack && (
+          <audio ref={audioRef} src={audioTrackUrl!} preload="auto" style={{ display: "none" }} />
+        )}
 
         {/* Logo */}
         {settings.logo_url && (
