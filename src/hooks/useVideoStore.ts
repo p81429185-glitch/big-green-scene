@@ -345,7 +345,7 @@ export function useVideoStore() {
           const isFast = isFaststart(headerBuffer);
           console.log("Is faststart:", isFast);
 
-          if (isFast) {
+          if (!isFast) {
             // Need to process — read full file
             const fullBuffer = await cleanFile.arrayBuffer();
             const SIZE_100MB = 100 * 1024 * 1024;
