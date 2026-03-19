@@ -540,6 +540,7 @@ const VideoPlayer = () => {
                   ? supabase.storage.from("audio-tracks").getPublicUrl((video as any).audio_track_path).data.publicUrl
                   : null
               }
+              aspectRatio={video.aspect_ratio || "16:9"}
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
