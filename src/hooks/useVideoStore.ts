@@ -557,6 +557,7 @@ export function useVideoStore() {
           audio_track_path: audioStoragePath,
           is_processed: true,
           processing_status: "ready",
+          aspect_ratio: aspectRatio || "16:9",
         } as any)
         .select()
         .single();
