@@ -366,7 +366,7 @@ const EmbedDialog = ({
     popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
     domainRestricted, allowedDomain,
     brandColor, brandIconColor, brandProgressColor, brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
-    supabaseUrl, anonKey, mux_playback_id, mux_status, storage_path, audio_track_path,
+    supabaseUrl, anonKey, mux_playback_id, mux_status, storage_path, audio_track_path, aspect_ratio,
   ]);
 
   const handleCopy = async () => {
