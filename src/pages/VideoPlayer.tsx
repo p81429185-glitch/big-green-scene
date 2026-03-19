@@ -684,6 +684,7 @@ const VideoPlayer = () => {
         mux_playback_id={video.mux_playback_id}
         mux_status={video.mux_status}
         audio_track_path={(video as any).audio_track_path}
+        aspect_ratio={video.aspect_ratio}
       />
     </div>
   );
