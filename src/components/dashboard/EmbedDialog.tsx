@@ -346,6 +346,7 @@ const EmbedDialog = ({
         mux_playback_id,
         mux_status,
         audioPublicUrl,
+        aspect_ratio,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
