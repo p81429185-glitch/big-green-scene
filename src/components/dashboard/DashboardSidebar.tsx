@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ChevronDown,
   Users,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
