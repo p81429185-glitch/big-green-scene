@@ -325,7 +325,8 @@ export function useVideoStore() {
     async (
       file: File,
       folderId: string | null,
-      onProgress?: (pct: number) => void
+      onProgress?: (pct: number) => void,
+      aspectRatio?: string
     ) => {
       const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
 
