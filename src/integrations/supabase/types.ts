@@ -225,6 +225,7 @@ export type Database = {
       }
       videos: {
         Row: {
+          audio_track_path: string | null
           created_at: string
           file_name: string
           folder_id: string | null
@@ -244,6 +245,7 @@ export type Database = {
           transcription: string | null
         }
         Insert: {
+          audio_track_path?: string | null
           created_at?: string
           file_name: string
           folder_id?: string | null
@@ -263,6 +265,7 @@ export type Database = {
           transcription?: string | null
         }
         Update: {
+          audio_track_path?: string | null
           created_at?: string
           file_name?: string
           folder_id?: string | null
