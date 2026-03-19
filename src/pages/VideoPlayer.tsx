@@ -73,9 +73,11 @@ interface VideoLoadingWrapperProps {
   playerRef: React.RefObject<BrandedVideoPlayerHandle>;
   isProcessed: boolean;
   fileSize: number;
+  muxStatus: string;
+  muxPlaybackId: string | null;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
