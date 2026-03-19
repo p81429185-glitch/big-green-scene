@@ -45,6 +45,7 @@ interface BrandedVideoPlayerProps {
   useHls?: boolean;
   videoId?: string;
   audioTrackUrl?: string | null;
+  aspectRatio?: string;
   onTimeUpdate?: (time: number) => void;
   onCanPlay?: () => void;
   onError?: () => void;
