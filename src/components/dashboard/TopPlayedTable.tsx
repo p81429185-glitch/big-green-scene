@@ -1,4 +1,5 @@
-import { Play, Trash2, FileVideo, Heart } from "lucide-react";
+import { Play, Trash2, FileVideo, Heart, Music } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
