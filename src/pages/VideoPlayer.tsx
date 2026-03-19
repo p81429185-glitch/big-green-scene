@@ -655,6 +655,7 @@ const VideoPlayer = () => {
         storage_path={video.storage_path}
         mux_playback_id={video.mux_playback_id}
         mux_status={video.mux_status}
+        audio_track_path={(video as any).audio_track_path}
       />
     </div>
   );
