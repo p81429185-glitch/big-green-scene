@@ -431,11 +431,51 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       }, 1000);
       return () => clearInterval(tick);
     }, [playing, videoId]);
+
+    // Audio sync for separate audio track
+    const hasAudioTrack = !!audioTrackUrl;
+
     useEffect(() => {
-      if (videoRef.current) {
+      if (!hasAudioTrack) return;
+      const v = videoRef.current;
+      const a = audioRef.current;
+      if (!v || !a) return;
+
+      // Mute video element when we have separate audio
+      v.muted = true;
+
+      const syncAudioPlay = () => { a.currentTime = v.currentTime; a.play().catch(() => {}); };
+      const syncAudioPause = () => { a.pause(); };
+      const syncAudioSeek = () => { a.currentTime = v.currentTime; };
+
+      v.addEventListener("play", syncAudioPlay);
+      v.addEventListener("pause", syncAudioPause);
+      v.addEventListener("seeked", syncAudioSeek);
+
+      // Drift correction every 5s
+      const driftInterval = setInterval(() => {
+        if (!v.paused && Math.abs(v.currentTime - a.currentTime) > 0.3) {
+          a.currentTime = v.currentTime;
+        }
+      }, 5000);
+
+      return () => {
+        v.removeEventListener("play", syncAudioPlay);
+        v.removeEventListener("pause", syncAudioPause);
+        v.removeEventListener("seeked", syncAudioSeek);
+        clearInterval(driftInterval);
+      };
+    }, [hasAudioTrack]);
+
+    // Volume control: affects audio element when we have separate audio
+    useEffect(() => {
+      if (hasAudioTrack && audioRef.current) {
+        audioRef.current.volume = muted ? 0 : volume;
+      }
+      if (!hasAudioTrack && videoRef.current) {
         videoRef.current.volume = muted ? 0 : volume;
       }
-    }, [volume, muted]);
+    }, [volume, muted, hasAudioTrack]);
 
     const displayProgress = isSeeking
       ? seekPosition * 100
