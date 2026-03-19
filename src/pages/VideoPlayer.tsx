@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import Hls from "hls.js";
 import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video/BrandedVideoPlayer";
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
@@ -37,6 +38,9 @@ interface Video {
   transcription: string | null;
   is_processed: boolean;
   processing_status: string;
+  mux_asset_id: string | null;
+  mux_playback_id: string | null;
+  mux_status: string;
 }
 
 interface Folder {
@@ -69,9 +73,11 @@ interface VideoLoadingWrapperProps {
   playerRef: React.RefObject<BrandedVideoPlayerHandle>;
   isProcessed: boolean;
   fileSize: number;
+  muxStatus: string;
+  muxPlaybackId: string | null;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -237,26 +243,40 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   }
 
   const fileSizeMB = Math.round(fileSize / (1024 * 1024));
+  const isMuxReady = muxStatus === "ready" && !!muxPlaybackId;
+  const isMuxProcessing = muxStatus === "processing";
+
+  // Determine effective src: HLS if Mux ready, otherwise direct URL
+  const effectiveSrc = isMuxReady
+    ? `https://stream.mux.com/${muxPlaybackId}.m3u8`
+    : src;
 
   return (
     <div>
-      {/* Persistent banner ABOVE player for unprocessed files */}
-      {!isProcessed && (
+      {/* Mux processing banner ABOVE player */}
+      {isMuxProcessing && (
+        <div className="mb-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-400 text-xs font-medium text-center py-2 px-3">
+          Film jest przetwarzany przez Mux — dostępny za ~2-5 minut. Strona odświeży się automatycznie.
+        </div>
+      )}
+
+      {/* Persistent banner ABOVE player for unprocessed files (only if NOT using Mux) */}
+      {!isProcessed && !isMuxReady && !isMuxProcessing && (
         <div className="mb-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-medium text-center py-2 px-3">
           Ten film nie jest zoptymalizowany — pierwsze odtworzenie może wymagać pobrania całego pliku (~{fileSizeMB}MB)
         </div>
       )}
 
       <div className="relative">
-        {/* Non-blocking amber processing banner */}
-        {showProcessingBanner && (
+        {/* Non-blocking amber processing banner (only for non-Mux fallback) */}
+        {showProcessingBanner && !isMuxReady && (
           <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg pointer-events-none">
             Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
           </div>
         )}
 
-        {/* Buffering bar — slim YouTube-style top bar */}
-        {isBuffering && !isLoading && (
+        {/* Buffering bar — slim YouTube-style top bar (hidden for HLS streams) */}
+        {isBuffering && !isLoading && !isMuxReady && (
           <div className="absolute top-0 left-0 right-0 z-10 h-[3px] pointer-events-none overflow-hidden rounded-t-lg">
             <div className="h-full w-1/3 bg-primary animate-[bufferSlide_1.5s_ease-in-out_infinite] rounded-full" />
           </div>
@@ -304,7 +324,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
           <BrandedVideoPlayer
             key={retryKey}
             ref={playerRef}
-            src={src}
+            src={effectiveSrc}
+            useHls={isMuxReady}
             subtitlesSrt={subtitlesSrt}
             videoId={videoId}
             onCanPlay={handleCanPlay}
@@ -317,8 +338,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         </div>
       </div>
 
-      {/* Stall message BELOW the player */}
-      {isStalled && !isLoading && (
+      {/* Stall message BELOW the player (hidden for HLS) */}
+      {isStalled && !isLoading && !isMuxReady && (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-muted border border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
             Film ładuje się — to może potrwać chwilę przy pierwszym odtwarzaniu
@@ -384,6 +405,28 @@ const VideoPlayer = () => {
     };
 
     load();
+
+    // Realtime subscription for mux_status changes
+    const channel = supabase
+      .channel(`video-mux-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "videos",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Video;
+          setVideo((prev) => prev ? { ...prev, ...updated } : prev);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   const handleShare = () => {
@@ -503,6 +546,8 @@ const VideoPlayer = () => {
               playerRef={playerRef}
               isProcessed={video.is_processed}
               fileSize={video.size}
+              muxStatus={video.mux_status || "pending"}
+              muxPlaybackId={video.mux_playback_id || null}
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">

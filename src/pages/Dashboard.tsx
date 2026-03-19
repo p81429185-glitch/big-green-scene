@@ -15,6 +15,7 @@ import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import BrandKitView from "@/components/dashboard/BrandKitView";
 import AdminUsersView from "@/components/dashboard/AdminUsersView";
+import MuxSettingsView from "@/components/dashboard/MuxSettingsView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
 
@@ -27,7 +28,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const { isAuthenticated, loading: authLoading, isAdmin, userEmail } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users">("home");
+  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux">("home");
   const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
@@ -130,7 +131,7 @@ const Dashboard = () => {
         </header>
 
         <main className="flex-1 p-4 md:p-6 space-y-6">
-          {activeView !== "analytics" && activeView !== "brandkit" && (
+          {activeView !== "analytics" && activeView !== "brandkit" && activeView !== "mux" && (
             <ActionCards
               totalPlays={totalPlays}
               onUploadClick={() => setUploadOpen(true)}
@@ -157,7 +158,7 @@ const Dashboard = () => {
             </nav>
           )}
 
-          {activeView !== "analytics" && activeView !== "brandkit" && bannerVisible && lastVideo && (
+          {activeView !== "analytics" && activeView !== "brandkit" && activeView !== "mux" && bannerVisible && lastVideo && (
             <RecentBanner
               title={lastVideo.title}
               videoId={lastVideo.id}
@@ -177,6 +178,8 @@ const Dashboard = () => {
             <BrandKitView />
           ) : activeView === "users" && isAdmin ? (
             <AdminUsersView />
+          ) : activeView === "mux" && isAdmin ? (
+            <MuxSettingsView />
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">

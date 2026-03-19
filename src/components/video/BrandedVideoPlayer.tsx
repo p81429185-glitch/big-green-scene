@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import Hls from "hls.js";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,6 +42,7 @@ interface BrandedVideoPlayerProps {
   poster?: string;
   subtitlesSrt?: string | null;
   autoPlay?: boolean;
+  useHls?: boolean;
   videoId?: string;
   onTimeUpdate?: (time: number) => void;
   onCanPlay?: () => void;
@@ -58,8 +60,9 @@ export interface BrandedVideoPlayerHandle {
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying, onStalled, onProgressResume }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, useHls, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying, onStalled, onProgressResume }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
 
@@ -336,6 +339,49 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       return () => document.removeEventListener("fullscreenchange", onFsChange);
     }, []);
 
+    // HLS initialization
+    useEffect(() => {
+      const v = videoRef.current;
+      if (!v || !src) return;
+
+      // Clean up previous HLS instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      if (useHls && src.endsWith(".m3u8")) {
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+          });
+          hlsRef.current = hls;
+          hls.loadSource(src);
+          hls.attachMedia(v);
+          hls.on(Hls.Events.ERROR, (_event, data) => {
+            if (data.fatal) {
+              console.error("HLS fatal error:", data);
+              onError?.();
+            }
+          });
+        } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
+          // Safari native HLS
+          v.src = src;
+        }
+      } else {
+        // Direct MP4 playback
+        v.src = src;
+      }
+
+      return () => {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      };
+    }, [src, useHls, onError]);
+
     // Watch time tracking
     const watchTimeRef = useRef(0);
     const viewerSessionRef = useRef<string>("");
@@ -403,7 +449,6 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       >
         <video
           ref={videoRef}
-          src={src}
           muted={muted}
           onTimeUpdate={handleTimeUpdate}
           className="w-full h-full object-contain"
