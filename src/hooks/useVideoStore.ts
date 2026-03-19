@@ -516,7 +516,8 @@ export function useVideoStore() {
       videoFile: File,
       audioFile: File,
       folderId: string | null,
-      onProgress?: (pct: number) => void
+      onProgress?: (pct: number) => void,
+      aspectRatio?: string
     ) => {
       const uuid = crypto.randomUUID();
       const videoStoragePath = `${uuid}_${sanitizeFileName(videoFile.name)}`;
