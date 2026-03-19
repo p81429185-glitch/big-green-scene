@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import type { FolderItem } from "@/hooks/useVideoStore";
 
-export type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit" | "users";
+export type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux";
 
 const navItems = [
   { icon: Home, label: "Home" },
