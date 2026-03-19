@@ -109,7 +109,33 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         }
       },
       play: () => videoRef.current?.play(),
+      reload: () => {
+        const v = videoRef.current;
+        if (!v) return;
+        v.src = src;
+        v.load();
+        v.play();
+      },
     }));
+
+    // Stall detection: 5s after play with no timeupdate = stalled
+    const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastTimeRef = useRef<number>(0);
+    const frozenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const clearStallTimer = useCallback(() => {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+    }, []);
+
+    const clearFrozenTimer = useCallback(() => {
+      if (frozenTimerRef.current) {
+        clearInterval(frozenTimerRef.current);
+        frozenTimerRef.current = null;
+      }
+    }, []);
 
     const togglePlay = useCallback(() => {
       const v = videoRef.current;
@@ -132,7 +158,16 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       const v = videoRef.current;
       if (!v) return;
       setCurrentTime(v.currentTime);
+      lastTimeRef.current = v.currentTime;
       onTimeUpdate?.(v.currentTime);
+
+      // Clear stall timer — timeupdate means frames are progressing
+      clearStallTimer();
+
+      // If we were stalled and now progressing, notify parent
+      if (v.currentTime > 0) {
+        onProgressResume?.();
+      }
 
       if (segments.length > 0) {
         const active = segments.find(
@@ -140,7 +175,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         );
         setCurrentSubtitle(active?.text ?? "");
       }
-    }, [segments, onTimeUpdate]);
+    }, [segments, onTimeUpdate, clearStallTimer, onProgressResume]);
 
     const calcSeekPosition = useCallback((clientX: number) => {
       const bar = progressBarRef.current;
