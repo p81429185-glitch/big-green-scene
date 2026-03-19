@@ -274,6 +274,8 @@ export function useVideoStore() {
           cacheControl: "3600",
         },
         onError: (error) => {
+          console.error("TUS error:", error);
+          toast.error("Błąd uploadu", { description: String(error.message) });
           reject(new Error(`Upload failed: ${error.message}`));
         },
         onProgress: (bytesUploaded, bytesTotal) => {
