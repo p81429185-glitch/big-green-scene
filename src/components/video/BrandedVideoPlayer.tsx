@@ -339,12 +339,11 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         <video
           ref={videoRef}
           src={src}
-          poster={poster}
-          autoPlay={autoPlay}
           muted={muted}
           onTimeUpdate={handleTimeUpdate}
           className="w-full h-full object-contain"
           style={isFullscreen ? {} : videoStyle}
+          playsInline
         />
 
         {/* Logo */}

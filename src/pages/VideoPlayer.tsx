@@ -205,7 +205,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     <div className="relative">
       {/* Non-blocking amber processing banner */}
       {showProcessingBanner && (
-        <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg">
+        <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg pointer-events-none">
           Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
         </div>
       )}
@@ -263,10 +263,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
           key={retryKey}
           ref={playerRef}
           src={src}
-          poster={poster}
           subtitlesSrt={subtitlesSrt}
           videoId={videoId}
-          autoPlay
           onCanPlay={handleCanPlay}
           onError={handleError}
           onWaiting={handleWaiting}
