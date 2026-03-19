@@ -301,6 +301,8 @@ const EmbedDialog = ({
         videoId || "", supabaseUrl, anonKey, thumbnailUrl,
         !(domainRestricted && !!allowedDomain.trim()),
         storage_path || "",
+        mux_playback_id,
+        mux_status,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
