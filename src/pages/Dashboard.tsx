@@ -16,6 +16,7 @@ import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import BrandKitView from "@/components/dashboard/BrandKitView";
 import AdminUsersView from "@/components/dashboard/AdminUsersView";
 import MuxSettingsView from "@/components/dashboard/MuxSettingsView";
+import type { MuxConnectionStatus } from "@/components/dashboard/MuxSettingsView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
 
@@ -29,6 +30,7 @@ const Dashboard = () => {
   const { isAuthenticated, loading: authLoading, isAdmin, userEmail } = useAuth();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux">("home");
+  const [muxConnectionStatus, setMuxConnectionStatus] = useState<MuxConnectionStatus>("unknown");
   const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
@@ -39,6 +41,11 @@ const Dashboard = () => {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, authLoading, navigate]);
+
+  // Default admin view to Mux settings
+  useEffect(() => {
+    if (!authLoading && isAdmin) setActiveView("mux");
+  }, [authLoading, isAdmin]);
 
   const filteredVideos = useMemo(() => {
     let result = activeView === "favorites"
@@ -107,6 +114,7 @@ const Dashboard = () => {
         onDeleteFolder={deleteFolder}
         activeView={activeView}
         isAdmin={isAdmin}
+        muxConnectionStatus={muxConnectionStatus}
         onViewChange={(view) => { setActiveView(view); if (view !== "home") setCurrentFolderId(null); }}
         onDropVideo={(videoId, folderId) => moveVideo(videoId, folderId)}
         onDropFolder={(folderId, targetParentId) => moveFolder(folderId, targetParentId)}
@@ -179,7 +187,7 @@ const Dashboard = () => {
           ) : activeView === "users" && isAdmin ? (
             <AdminUsersView />
           ) : activeView === "mux" && isAdmin ? (
-            <MuxSettingsView />
+            <MuxSettingsView onConnectionStatusChange={setMuxConnectionStatus} />
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">

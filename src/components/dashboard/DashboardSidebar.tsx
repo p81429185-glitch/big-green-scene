@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import type { FolderItem } from "@/hooks/useVideoStore";
 
+import type { MuxConnectionStatus } from "@/components/dashboard/MuxSettingsView";
+
 export type ViewType = "home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux";
 
 const navItems = [
@@ -44,6 +46,7 @@ interface Props {
   onDropVideo?: (videoId: string, folderId: string | null) => void;
   onDropFolder?: (folderId: string, targetParentId: string | null) => void;
   isAdmin?: boolean;
+  muxConnectionStatus?: MuxConnectionStatus;
 }
 
 const viewMap: Record<string, ViewType> = {
@@ -60,7 +63,7 @@ const handleDragData = (e: React.DragEvent) => {
   return { videoId, folderId };
 };
 
-const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo, onDropFolder, isAdmin }: Props) => {
+const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo, onDropFolder, isAdmin, muxConnectionStatus = "unknown" }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -136,7 +139,18 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
               }`}
             >
               <Video className="h-4 w-4" />
-              Mux Settings
+              <span className="flex-1 text-left">Ustawienia Mux</span>
+              <span className={`inline-block h-2 w-2 rounded-full ${
+                muxConnectionStatus === "connected" ? "bg-green-500" :
+                muxConnectionStatus === "configured" ? "bg-yellow-500" :
+                muxConnectionStatus === "not-configured" ? "bg-red-500" :
+                "bg-muted-foreground/40"
+              }`} title={
+                muxConnectionStatus === "connected" ? "Połączono" :
+                muxConnectionStatus === "configured" ? "Skonfigurowano — nie przetestowano" :
+                muxConnectionStatus === "not-configured" ? "Nie skonfigurowano" :
+                "Nieznany"
+              } />
             </button>
           </>
         )}
