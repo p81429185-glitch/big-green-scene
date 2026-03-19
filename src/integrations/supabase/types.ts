@@ -225,6 +225,7 @@ export type Database = {
       }
       videos: {
         Row: {
+          aspect_ratio: string | null
           audio_track_path: string | null
           created_at: string
           file_name: string
@@ -245,6 +246,7 @@ export type Database = {
           transcription: string | null
         }
         Insert: {
+          aspect_ratio?: string | null
           audio_track_path?: string | null
           created_at?: string
           file_name: string
@@ -265,6 +267,7 @@ export type Database = {
           transcription?: string | null
         }
         Update: {
+          aspect_ratio?: string | null
           audio_track_path?: string | null
           created_at?: string
           file_name?: string

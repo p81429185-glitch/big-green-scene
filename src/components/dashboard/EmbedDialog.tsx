@@ -47,6 +47,7 @@ interface EmbedDialogProps {
   mux_playback_id?: string | null;
   mux_status?: string;
   audio_track_path?: string | null;
+  aspect_ratio?: string | null;
 }
 
 function generateCustomPlayerCode(
@@ -68,6 +69,7 @@ function generateCustomPlayerCode(
   muxPlaybackId?: string | null,
   muxStatus?: string,
   audioTrackUrl?: string | null,
+  aspectRatio?: string | null,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
@@ -195,10 +197,18 @@ function generateCustomPlayerCode(
     ? `(function(el){var a=document.getElementById('${audId}');a.volume=parseFloat(el.value);a.muted=parseFloat(el.value)===0;})(this)`
     : `(function(el){var v=document.getElementById('${vid}');v.volume=parseFloat(el.value);v.muted=parseFloat(el.value)===0;})(this)`;
 
-  return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
+  const ar = aspectRatio || "16:9";
+  const arCssMap: Record<string, string> = { "16:9": "16/9", "9:16": "9/16", "1:1": "1/1", "4:3": "4/3" };
+  const arCss = arCssMap[ar] || "16/9";
+  const isPortrait = ar === "9:16";
+  const containerAr = `aspect-ratio:${arCss};`;
+  const portraitExtra = isPortrait ? "max-height:80vh;max-width:50%;margin:0 auto;" : "";
+  const videoAr = `aspect-ratio:${arCss};object-fit:contain;`;
+
+  return `<div style="position:relative;${sizeStyle}${containerAr}${portraitExtra}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
+  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
@@ -276,6 +286,7 @@ const EmbedDialog = ({
   mux_playback_id,
   mux_status,
   audio_track_path,
+  aspect_ratio,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
@@ -335,6 +346,7 @@ const EmbedDialog = ({
         mux_playback_id,
         mux_status,
         audioPublicUrl,
+        aspect_ratio,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
@@ -354,7 +366,7 @@ const EmbedDialog = ({
     popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
     domainRestricted, allowedDomain,
     brandColor, brandIconColor, brandProgressColor, brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
-    supabaseUrl, anonKey, mux_playback_id, mux_status, storage_path, audio_track_path,
+    supabaseUrl, anonKey, mux_playback_id, mux_status, storage_path, audio_track_path, aspect_ratio,
   ]);
 
   const handleCopy = async () => {

@@ -21,6 +21,7 @@ export interface VideoItem {
   is_processed: boolean;
   processing_status: string;
   audio_track_path: string | null;
+  aspect_ratio: string | null;
 }
 
 export interface FolderItem {
@@ -46,7 +47,7 @@ export function useVideoStore() {
   const fetchVideos = useCallback(async () => {
     const { data } = await supabase
       .from("videos")
-      .select("id,title,file_name,size,folder_id,plays,storage_path,thumbnail_url,created_at,is_favorite,is_processed,processing_status,audio_track_path")
+      .select("id,title,file_name,size,folder_id,plays,storage_path,thumbnail_url,created_at,is_favorite,is_processed,processing_status,audio_track_path,aspect_ratio")
       .order("created_at", { ascending: false });
     if (data) setVideos(data as VideoItem[]);
   }, []);
@@ -324,7 +325,8 @@ export function useVideoStore() {
     async (
       file: File,
       folderId: string | null,
-      onProgress?: (pct: number) => void
+      onProgress?: (pct: number) => void,
+      aspectRatio?: string
     ) => {
       const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
 
@@ -397,7 +399,8 @@ export function useVideoStore() {
           storage_path: storagePath,
           is_processed: isProcessed,
           processing_status: isProcessed ? "ready" : "pending",
-        })
+          aspect_ratio: aspectRatio || "16:9",
+        } as any)
         .select()
         .single();
 
@@ -513,7 +516,8 @@ export function useVideoStore() {
       videoFile: File,
       audioFile: File,
       folderId: string | null,
-      onProgress?: (pct: number) => void
+      onProgress?: (pct: number) => void,
+      aspectRatio?: string
     ) => {
       const uuid = crypto.randomUUID();
       const videoStoragePath = `${uuid}_${sanitizeFileName(videoFile.name)}`;
@@ -553,6 +557,7 @@ export function useVideoStore() {
           audio_track_path: audioStoragePath,
           is_processed: true,
           processing_status: "ready",
+          aspect_ratio: aspectRatio || "16:9",
         } as any)
         .select()
         .single();

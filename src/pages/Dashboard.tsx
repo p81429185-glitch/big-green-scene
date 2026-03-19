@@ -84,14 +84,12 @@ const Dashboard = () => {
 
   const currentFolderName = currentFolderId ? folders.find((f) => f.id === currentFolderId)?.name : undefined;
 
-  const handleFilesSelected = (files: File[]) => {
-    addFiles(files, currentFolderId);
+  const handleFilesSelected = (files: File[], aspectRatio: string) => {
+    addFiles(files, currentFolderId, aspectRatio);
   };
 
-  const handleDualFilesSelected = (videoFile: File, audioFile: File) => {
-    // Use upload queue pattern: create a fake queue item for progress tracking
-    const queueId = crypto.randomUUID();
-    uploadVideoWithSeparateAudio(videoFile, audioFile, currentFolderId, () => {}).then(() => {
+  const handleDualFilesSelected = (videoFile: File, audioFile: File, aspectRatio: string) => {
+    uploadVideoWithSeparateAudio(videoFile, audioFile, currentFolderId, () => {}, aspectRatio).then(() => {
       toast.success("Wideo z osobną ścieżką audio przesłane");
     }).catch((err: any) => {
       toast.error("Błąd przesyłania", { description: err?.message });

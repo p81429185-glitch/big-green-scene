@@ -9,16 +9,58 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 const ACCEPTED_VIDEO = ".mp4,.mov,.avi,.mkv,.webm";
 const ACCEPTED_AUDIO = ".mp3,.m4a,.aac,.wav";
 const MAX_FILES = 20;
 
+export type AspectRatio = "16:9" | "9:16" | "1:1" | "4:3";
+
+const ASPECT_OPTIONS: { value: AspectRatio; label: string; icon: React.ReactNode }[] = [
+  {
+    value: "16:9",
+    label: "Poziomy",
+    icon: (
+      <svg width="24" height="16" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+        <rect x="1" y="1" width="22" height="14" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    value: "9:16",
+    label: "Pionowy",
+    icon: (
+      <svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+        <rect x="1" y="1" width="12" height="20" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    value: "1:1",
+    label: "Kwadrat",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+        <rect x="1" y="1" width="16" height="16" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    value: "4:3",
+    label: "Klasyczny",
+    icon: (
+      <svg width="22" height="18" viewBox="0 0 22 18" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+        <rect x="1" y="1" width="20" height="16" rx="2" />
+      </svg>
+    ),
+  },
+];
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onFilesSelected: (files: File[]) => void;
-  onDualFilesSelected?: (videoFile: File, audioFile: File) => void;
+  onFilesSelected: (files: File[], aspectRatio: AspectRatio) => void;
+  onDualFilesSelected?: (videoFile: File, audioFile: File, aspectRatio: AspectRatio) => void;
 }
 
 function formatSize(bytes: number) {
@@ -28,6 +70,30 @@ function formatSize(bytes: number) {
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
+const AspectRatioSelector = ({ value, onChange }: { value: AspectRatio; onChange: (v: AspectRatio) => void }) => (
+  <div className="space-y-2">
+    <Label className="text-xs text-muted-foreground">Orientacja wideo</Label>
+    <div className="flex gap-1.5">
+      {ASPECT_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border text-xs transition-all ${
+            value === opt.value
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border/50 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+          }`}
+        >
+          {opt.icon}
+          <span className="text-[10px] font-medium">{opt.value}</span>
+          <span className="text-[9px]">{opt.label}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +101,7 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadMode, setUploadMode] = useState<"standard" | "dual">("standard");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
 
   // Dual mode state
   const [dualVideoFile, setDualVideoFile] = useState<File | null>(null);
@@ -51,10 +118,10 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
         setError(`Maksymalnie ${MAX_FILES} plików na raz`);
         return;
       }
-      onFilesSelected(arr);
+      onFilesSelected(arr, aspectRatio);
       onOpenChange(false);
     },
-    [onFilesSelected, onOpenChange]
+    [onFilesSelected, onOpenChange, aspectRatio]
   );
 
   const onDrop = useCallback(
@@ -88,20 +155,21 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
   const handleDualUpload = () => {
     if (!dualVideoFile || !dualAudioFile || !onDualFilesSelected) return;
     setError(null);
-    onDualFilesSelected(dualVideoFile, dualAudioFile);
+    onDualFilesSelected(dualVideoFile, dualAudioFile, aspectRatio);
     setDualVideoFile(null);
     setDualAudioFile(null);
     onOpenChange(false);
   };
 
-  const resetDualState = () => {
+  const resetState = () => {
     setDualVideoFile(null);
     setDualAudioFile(null);
     setError(null);
+    setAspectRatio("16:9");
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setError(null); resetDualState(); } }}>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetState(); }}>
       <DialogContent className="sm:max-w-lg border-border/50 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle>Dodaj filmy</DialogTitle>
@@ -114,9 +182,9 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
             <TabsTrigger value="dual" className="flex-1 text-xs">Wideo + Audio MP3</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="standard" className="mt-4">
+          <TabsContent value="standard" className="mt-4 space-y-4">
             {error && (
-              <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg mb-3">
+              <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {error}
               </div>
@@ -141,11 +209,12 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
               </Button>
               <input ref={inputRef} type="file" accept={ACCEPTED_VIDEO + ",.avi,.mkv"} multiple className="hidden" onChange={onFileChange} />
             </div>
+            <AspectRatioSelector value={aspectRatio} onChange={setAspectRatio} />
           </TabsContent>
 
-          <TabsContent value="dual" className="mt-4">
+          <TabsContent value="dual" className="mt-4 space-y-4">
             {error && (
-              <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg mb-3">
+              <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {error}
               </div>
@@ -222,8 +291,10 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
               </div>
             </div>
 
+            <AspectRatioSelector value={aspectRatio} onChange={setAspectRatio} />
+
             <Button
-              className="w-full mt-4"
+              className="w-full"
               disabled={!dualVideoFile || !dualAudioFile || !onDualFilesSelected}
               onClick={handleDualUpload}
             >

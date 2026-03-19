@@ -5,7 +5,7 @@ import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
-  FileText, ExternalLink, BookOpen, Loader2, RefreshCw, Music,
+  FileText, ExternalLink, BookOpen, Loader2, RefreshCw, Music, Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,6 +42,7 @@ interface Video {
   mux_playback_id: string | null;
   mux_status: string;
   audio_track_path: string | null;
+  aspect_ratio: string | null;
 }
 
 interface Folder {
@@ -78,9 +79,10 @@ interface VideoLoadingWrapperProps {
   muxPlaybackId: string | null;
   muxAssetId: string | null;
   audioTrackUrl: string | null;
+  aspectRatio: string;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -315,6 +317,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
             subtitlesSrt={subtitlesSrt}
             videoId={videoId}
             audioTrackUrl={audioTrackUrl}
+            aspectRatio={aspectRatio}
             onCanPlay={handleCanPlay}
             onError={handleError}
             onWaiting={handleWaiting}
@@ -537,6 +540,7 @@ const VideoPlayer = () => {
                   ? supabase.storage.from("audio-tracks").getPublicUrl((video as any).audio_track_path).data.publicUrl
                   : null
               }
+              aspectRatio={video.aspect_ratio || "16:9"}
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
@@ -616,6 +620,30 @@ const VideoPlayer = () => {
                         <p className="text-sm font-medium truncate">{video.file_name}</p>
                       </div>
                     </div>
+                    <Separator />
+                    <div className="flex items-center gap-3">
+                      <Monitor className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground">Orientacja</p>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={video.aspect_ratio || "16:9"}
+                            onChange={async (e) => {
+                              const newAr = e.target.value;
+                              await supabase.from("videos").update({ aspect_ratio: newAr } as any).eq("id", video.id);
+                              setVideo((prev) => prev ? { ...prev, aspect_ratio: newAr } : prev);
+                              toast.success("Orientacja zmieniona");
+                            }}
+                            className="text-sm font-medium bg-transparent border border-border rounded px-2 py-0.5 cursor-pointer"
+                          >
+                            <option value="16:9">Poziomy 16:9</option>
+                            <option value="9:16">Pionowy 9:16</option>
+                            <option value="1:1">Kwadrat 1:1</option>
+                            <option value="4:3">Klasyczny 4:3</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
 
@@ -656,6 +684,7 @@ const VideoPlayer = () => {
         mux_playback_id={video.mux_playback_id}
         mux_status={video.mux_status}
         audio_track_path={(video as any).audio_track_path}
+        aspect_ratio={video.aspect_ratio}
       />
     </div>
   );
