@@ -158,7 +158,7 @@ const Dashboard = () => {
             </nav>
           )}
 
-          {activeView !== "analytics" && activeView !== "brandkit" && bannerVisible && lastVideo && (
+          {activeView !== "analytics" && activeView !== "brandkit" && activeView !== "mux" && bannerVisible && lastVideo && (
             <RecentBanner
               title={lastVideo.title}
               videoId={lastVideo.id}
