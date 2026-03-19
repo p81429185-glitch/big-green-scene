@@ -31,7 +31,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux">("home");
   const [muxConnectionStatus, setMuxConnectionStatus] = useState<MuxConnectionStatus>("unknown");
-  const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
+  const { videos, folders, loading: videosLoading, uploadVideo, uploadVideoWithSeparateAudio, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
     queue, minimized, setMinimized, addFiles, clearQueue,
