@@ -384,6 +384,7 @@ export function useVideoStore() {
 
       // Insert metadata (90-95%)
       onProgress?.(91);
+      console.log("Inserting to DB, is_processed:", isProcessed);
       const title = file.name.replace(/\.[^/.]+$/, "");
       const { data: inserted, error: insertError } = await supabase
         .from("videos")
