@@ -46,6 +46,7 @@ interface Props {
   onDropVideo?: (videoId: string, folderId: string | null) => void;
   onDropFolder?: (folderId: string, targetParentId: string | null) => void;
   isAdmin?: boolean;
+  muxConnectionStatus?: MuxConnectionStatus;
 }
 
 const viewMap: Record<string, ViewType> = {
