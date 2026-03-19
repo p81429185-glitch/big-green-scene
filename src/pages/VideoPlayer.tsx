@@ -64,7 +64,7 @@ const actionTabs: { icon: typeof Pencil; label: string; id: ActionTabId }[] = [
   { icon: Scissors, label: "Klipy", id: "klipy" },
 ];
 
-// Video loading wrapper with progress, timeout detection, and non-blocking processing banner
+// Video loading wrapper with progress, stall detection, and Mux auto-submit
 interface VideoLoadingWrapperProps {
   src: string;
   poster?: string;
@@ -75,23 +75,37 @@ interface VideoLoadingWrapperProps {
   fileSize: number;
   muxStatus: string;
   muxPlaybackId: string | null;
+  muxAssetId: string | null;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
-  const [showProcessingBanner, setShowProcessingBanner] = useState(false);
-  const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [canPlayFired, setCanPlayFired] = useState(false);
-  const [isStalled, setIsStalled] = useState(false);
+  const [showRetryBelow, setShowRetryBelow] = useState(false);
+  const [stallCount, setStallCount] = useState(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
-  const processingDelayRef = useRef<NodeJS.Timeout | null>(null);
   const bufferTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSubmittedRef = useRef(false);
+
+  const isMuxReady = muxStatus === "ready" && !!muxPlaybackId;
+  const isMuxProcessing = muxStatus === "processing" || (muxStatus === "preparing" && !!muxPlaybackId);
+
+  // Auto-submit to Mux if not yet submitted
+  useEffect(() => {
+    if (autoSubmittedRef.current) return;
+    if (!muxAssetId || muxStatus === "pending") {
+      autoSubmittedRef.current = true;
+      supabase.functions.invoke("submit-to-mux", {
+        body: { video_id: videoId },
+      }).catch(() => {});
+    }
+  }, [videoId, muxAssetId, muxStatus]);
 
   const clearBufferTimeout = useCallback(() => {
     if (bufferTimeoutRef.current) {
@@ -100,46 +114,48 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     }
   }, []);
 
+  const clearStallTimer = useCallback(() => {
+    if (stallTimerRef.current) {
+      clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = null;
+    }
+  }, []);
+
   const handleCanPlay = useCallback(() => {
     setIsLoading(false);
     setLoadTimeout(false);
     setProgress(100);
-    setShowProcessingBanner(false);
-    setShowProcessingOverlay(false);
-    setCanPlayFired(true);
     setVideoError(false);
     setIsBuffering(false);
-    setIsStalled(false);
+    setShowRetryBelow(false);
     clearBufferTimeout();
+    clearStallTimer();
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
-    if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
-  }, [clearBufferTimeout]);
+  }, [clearBufferTimeout, clearStallTimer]);
 
   const handleError = useCallback(() => {
-    if (!isProcessed) {
-      setVideoError(true);
-      setIsLoading(false);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (progressRef.current) clearInterval(progressRef.current);
-    }
-  }, [isProcessed]);
+    setVideoError(true);
+    setIsLoading(false);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (progressRef.current) clearInterval(progressRef.current);
+  }, []);
 
   const handleRetry = useCallback(() => {
     setIsLoading(true);
     setLoadTimeout(false);
     setVideoError(false);
     setIsBuffering(false);
-    setIsStalled(false);
-    setShowProcessingOverlay(false);
-    setCanPlayFired(false);
+    setShowRetryBelow(false);
+    setStallCount(0);
     setProgress(0);
     clearBufferTimeout();
+    clearStallTimer();
     setRetryKey(prev => prev + 1);
-  }, [clearBufferTimeout]);
+  }, [clearBufferTimeout, clearStallTimer]);
 
   const handleManualRetry = useCallback(() => {
-    setIsStalled(false);
+    setShowRetryBelow(false);
     setIsBuffering(false);
     playerRef.current?.reload();
   }, [playerRef]);
@@ -153,52 +169,40 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
 
   const handlePlaying = useCallback(() => {
     clearBufferTimeout();
+    clearStallTimer();
     setIsBuffering(false);
-    setIsStalled(false);
-  }, [clearBufferTimeout]);
+    setShowRetryBelow(false);
+    setStallCount(0);
+  }, [clearBufferTimeout, clearStallTimer]);
 
   const handleStalled = useCallback(() => {
-    setIsStalled(true);
     setIsBuffering(true);
   }, []);
 
   const handleProgressResume = useCallback(() => {
-    setIsStalled(false);
     setIsBuffering(false);
   }, []);
 
-  // Delayed processing overlay — only show after 10s if canplay hasn't fired and not processed
+  // Stall detection: if video stuck after play click, auto-retry once then show button
   useEffect(() => {
-    if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
-
-    if (!isProcessed && !canPlayFired) {
-      processingDelayRef.current = setTimeout(() => {
-        setShowProcessingOverlay(true);
-        // Also show the banner
-        setShowProcessingBanner(true);
-      }, 10000);
-    } else {
-      setShowProcessingOverlay(false);
-      setShowProcessingBanner(false);
-    }
-
-    return () => {
-      if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
-    };
-  }, [isProcessed, canPlayFired, retryKey]);
-
-  // Update when isProcessed changes (via realtime)
-  useEffect(() => {
-    if (isProcessed) {
-      setShowProcessingBanner(false);
-      setShowProcessingOverlay(false);
-      if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
-      if (videoError) {
-        handleRetry();
+    if (!isBuffering || isLoading || isMuxReady) return;
+    
+    clearStallTimer();
+    stallTimerRef.current = setTimeout(() => {
+      if (stallCount === 0) {
+        // First stall: auto-retry
+        setStallCount(1);
+        playerRef.current?.reload();
+      } else {
+        // Second stall: show retry button below player
+        setShowRetryBelow(true);
       }
-    }
-  }, [isProcessed, videoError, handleRetry]);
+    }, 5000);
 
+    return () => clearStallTimer();
+  }, [isBuffering, isLoading, isMuxReady, stallCount, clearStallTimer, playerRef]);
+
+  // Loading progress bar
   useEffect(() => {
     setIsLoading(true);
     setLoadTimeout(false);
@@ -223,29 +227,6 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     };
   }, [src, retryKey]);
 
-  // Full-screen processing overlay — only after 10s delay OR video error + not processed
-  if (showProcessingOverlay && videoError && !isProcessed) {
-    return (
-      <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <div className="text-center">
-          <p className="text-lg font-medium">Film jest przetwarzany...</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Optymalizacja do szybkiego odtwarzania. Strona odświeży się automatycznie.
-          </p>
-        </div>
-        <Button onClick={handleRetry} variant="outline" className="mt-2">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Spróbuj ponownie
-        </Button>
-      </div>
-    );
-  }
-
-  const fileSizeMB = Math.round(fileSize / (1024 * 1024));
-  const isMuxReady = muxStatus === "ready" && !!muxPlaybackId;
-  const isMuxProcessing = muxStatus === "processing";
-
   // Determine effective src: HLS if Mux ready, otherwise direct URL
   const effectiveSrc = isMuxReady
     ? `https://stream.mux.com/${muxPlaybackId}.m3u8`
@@ -253,25 +234,11 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
 
   return (
     <div>
-      {/* Mux processing banner ABOVE player */}
-      {isMuxProcessing && (
-        <div className="mb-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-400 text-xs font-medium text-center py-2 px-3">
-          Film jest przetwarzany przez Mux — dostępny za ~2-5 minut. Strona odświeży się automatycznie.
-        </div>
-      )}
-
-      {/* Persistent banner ABOVE player for unprocessed files (only if NOT using Mux) */}
-      {!isProcessed && !isMuxReady && !isMuxProcessing && (
-        <div className="mb-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-medium text-center py-2 px-3">
-          Ten film nie jest zoptymalizowany — pierwsze odtworzenie może wymagać pobrania całego pliku (~{fileSizeMB}MB)
-        </div>
-      )}
-
       <div className="relative">
-        {/* Non-blocking amber processing banner (only for non-Mux fallback) */}
-        {showProcessingBanner && !isMuxReady && (
-          <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg pointer-events-none">
-            Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
+        {/* Mux processing badge — top right, non-blocking */}
+        {isMuxProcessing && !isMuxReady && (
+          <div className="absolute top-2 right-2 z-20 rounded-md bg-yellow-500/90 text-yellow-950 text-xs font-medium py-1 px-2.5 pointer-events-none animate-pulse">
+            Mux: przetwarzanie...
           </div>
         )}
 
@@ -319,8 +286,25 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
           </div>
         )}
 
-        {/* Actual video player - always rendered but hidden during loading */}
-        <div className={isLoading ? 'invisible' : 'visible'}>
+        {/* Video error state */}
+        {videoError && !isLoading && (
+          <div className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="text-lg font-medium">Film jest przetwarzany...</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Strona odświeży się automatycznie gdy film będzie gotowy.
+              </p>
+            </div>
+            <Button onClick={handleRetry} variant="outline" className="mt-2">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Spróbuj ponownie
+            </Button>
+          </div>
+        )}
+
+        {/* Actual video player */}
+        <div className={isLoading || videoError ? 'invisible' : 'visible'}>
           <BrandedVideoPlayer
             key={retryKey}
             ref={playerRef}
@@ -338,22 +322,18 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         </div>
       </div>
 
-      {/* Stall message BELOW the player (hidden for HLS) */}
-      {isStalled && !isLoading && !isMuxReady && (
-        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-muted border border-border px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            Film ładuje się — to może potrwać chwilę przy pierwszym odtwarzaniu
-          </p>
-          <Button onClick={handleManualRetry} variant="outline" size="sm" className="shrink-0">
+      {/* Retry button BELOW the player — only after second stall */}
+      {showRetryBelow && !isLoading && !isMuxReady && (
+        <div className="mt-2 flex items-center justify-center">
+          <Button onClick={handleManualRetry} variant="outline" size="sm">
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            Spróbuj ponownie
+            Odśwież odtwarzacz
           </Button>
         </div>
       )}
     </div>
   );
 };
-
 const VideoPlayer = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
