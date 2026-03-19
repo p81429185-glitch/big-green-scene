@@ -47,6 +47,7 @@ interface EmbedDialogProps {
   mux_playback_id?: string | null;
   mux_status?: string;
   audio_track_path?: string | null;
+  aspect_ratio?: string | null;
 }
 
 function generateCustomPlayerCode(
