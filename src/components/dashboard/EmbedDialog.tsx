@@ -44,6 +44,8 @@ interface EmbedDialogProps {
   thumbnailUrl: string | null;
   transcription?: string | null;
   storage_path?: string;
+  mux_playback_id?: string | null;
+  mux_status?: string;
 }
 
 function generateCustomPlayerCode(
