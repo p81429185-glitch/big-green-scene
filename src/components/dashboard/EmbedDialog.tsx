@@ -322,6 +322,9 @@ const EmbedDialog = ({
   const embedCode = useMemo(() => {
     let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
+      const audioPublicUrl = audio_track_path
+        ? `${supabaseUrl}/storage/v1/object/public/audio-tracks/${audio_track_path}`
+        : null;
       rawCode = generateCustomPlayerCode(
         brandColor, brandIconColor, brandProgressColor,
         brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
@@ -331,6 +334,7 @@ const EmbedDialog = ({
         storage_path || "",
         mux_playback_id,
         mux_status,
+        audioPublicUrl,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
