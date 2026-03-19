@@ -368,7 +368,8 @@ export function useVideoStore() {
           }
         } catch (err) {
           // Processing failed — upload original, don't block
-          console.error("Faststart pre-processing failed, uploading original:", err);
+          console.error("Worker/faststart failed:", err);
+          toast.error("Błąd optymalizacji", { description: String(err) });
           fileToUpload = cleanFile;
           isProcessed = false;
         }
