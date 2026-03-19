@@ -71,6 +71,7 @@ function generateCustomPlayerCode(
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
+  const audId = "a" + uid;
   const prog = "bar" + uid;
   const fill = "fill" + uid;
   const timeEl = "time" + uid;
