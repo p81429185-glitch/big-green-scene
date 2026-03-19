@@ -171,10 +171,34 @@ function generateCustomPlayerCode(
   const videoPreload = isMuxReady ? "auto" : "metadata";
   const videoSrcAttr = isMuxReady ? "" : (skipDomainCheck ? ` src="${directUrl}"` : "");
 
+  const hasAudio = !!audioTrackUrl;
+  const videoMutedAttr = hasAudio ? " muted" : "";
+  const audioHtml = hasAudio ? `\n  <audio id="${audId}" src="${audioTrackUrl}" preload="auto" style="display:none;"></audio>` : "";
+
+  // Audio sync script for embed
+  const audioSyncScript = hasAudio ? `
+    (function(){
+      var v=document.getElementById("${vid}"),a=document.getElementById("${audId}");
+      v.muted=true;
+      v.addEventListener("play",function(){a.currentTime=v.currentTime;a.play();});
+      v.addEventListener("pause",function(){a.pause();});
+      v.addEventListener("seeked",function(){a.currentTime=v.currentTime;});
+      setInterval(function(){if(!v.paused&&Math.abs(v.currentTime-a.currentTime)>0.3){a.currentTime=v.currentTime;}},5000);
+    })();` : "";
+
+  // Override volume controls for audio track mode
+  const volumeMuteOnclick = hasAudio
+    ? `(function(){var a=document.getElementById('${audId}');var s=document.getElementById('${volSlider}');a.muted=!a.muted;s.value=a.muted?0:a.volume;})()`
+    : `(function(){var v=document.getElementById('${vid}');var s=document.getElementById('${volSlider}');v.muted=!v.muted;s.value=v.muted?0:v.volume;})()`;
+
+  const volumeInputOnclick = hasAudio
+    ? `(function(el){var a=document.getElementById('${audId}');a.volume=parseFloat(el.value);a.muted=parseFloat(el.value)===0;})(this)`
+    : `(function(el){var v=document.getElementById('${vid}');v.volume=parseFloat(el.value);v.muted=parseFloat(el.value)===0;})(this)`;
+
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
