@@ -219,7 +219,6 @@ async function stripLargeFile(file: File): Promise<File> {
 
   if (moovEnd <= headBytes) {
     // moov is entirely in the head chunk — strip it in memory
-    const headerLen = moovAtom.size === 1 ? 16 : 8; // won't be 1 typically but handle it
     // Re-check with actual header
     const moovHeader = readAtomHeader(headView, moovAtom.offset);
     if (!moovHeader) return file;
