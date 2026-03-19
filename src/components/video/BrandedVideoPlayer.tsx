@@ -47,15 +47,18 @@ interface BrandedVideoPlayerProps {
   onError?: () => void;
   onWaiting?: () => void;
   onPlaying?: () => void;
+  onStalled?: () => void;
+  onProgressResume?: () => void;
 }
 
 export interface BrandedVideoPlayerHandle {
   seek: (seconds: number) => void;
   play: () => void;
+  reload: () => void;
 }
 
 const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlayerProps>(
-  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying }, ref) => {
+  ({ src, poster, subtitlesSrt, autoPlay, videoId, onTimeUpdate, onCanPlay, onError, onWaiting, onPlaying, onStalled, onProgressResume }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { settings } = useBrandSettings();
