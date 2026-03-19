@@ -226,10 +226,10 @@ function generateCustomPlayerCode(
       <div style="width:0%;height:100%;background:${brandProgressColor};border-radius:2px;" id="${fill}"></div>
     </div>
     <!-- Volume -->
-    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" id="mute${uid}" onclick="(function(){var v=document.getElementById('${vid}');var s=document.getElementById('${volSlider}');v.muted=!v.muted;s.value=v.muted?0:v.volume;})()">
+    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" id="mute${uid}" onclick="${volumeMuteOnclick}">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     </button>
-    <input type="range" min="0" max="1" step="0.05" value="1" id="${volSlider}" style="width:60px;height:4px;cursor:pointer;accent-color:${brandProgressColor};" oninput="(function(el){var v=document.getElementById('${vid}');v.volume=parseFloat(el.value);v.muted=parseFloat(el.value)===0;})(this)" />
+    <input type="range" min="0" max="1" step="0.05" value="1" id="${volSlider}" style="width:60px;height:4px;cursor:pointer;accent-color:${brandProgressColor};" oninput="${volumeInputOnclick}" />
     <!-- Quality -->
     <div style="position:relative;">
       <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;font-size:11px;font-family:sans-serif;" id="qbtn${uid}" onclick="(function(){var m=document.getElementById('${qualMenu}');m.style.display=m.style.display==='none'?'block':'none';})()">HD</button>
