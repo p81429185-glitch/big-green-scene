@@ -243,26 +243,40 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   }
 
   const fileSizeMB = Math.round(fileSize / (1024 * 1024));
+  const isMuxReady = muxStatus === "ready" && !!muxPlaybackId;
+  const isMuxProcessing = muxStatus === "processing";
+
+  // Determine effective src: HLS if Mux ready, otherwise direct URL
+  const effectiveSrc = isMuxReady
+    ? `https://stream.mux.com/${muxPlaybackId}.m3u8`
+    : src;
 
   return (
     <div>
-      {/* Persistent banner ABOVE player for unprocessed files */}
-      {!isProcessed && (
+      {/* Mux processing banner ABOVE player */}
+      {isMuxProcessing && (
+        <div className="mb-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-400 text-xs font-medium text-center py-2 px-3">
+          Film jest przetwarzany przez Mux — dostępny za ~2-5 minut. Strona odświeży się automatycznie.
+        </div>
+      )}
+
+      {/* Persistent banner ABOVE player for unprocessed files (only if NOT using Mux) */}
+      {!isProcessed && !isMuxReady && !isMuxProcessing && (
         <div className="mb-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-medium text-center py-2 px-3">
           Ten film nie jest zoptymalizowany — pierwsze odtworzenie może wymagać pobrania całego pliku (~{fileSizeMB}MB)
         </div>
       )}
 
       <div className="relative">
-        {/* Non-blocking amber processing banner */}
-        {showProcessingBanner && (
+        {/* Non-blocking amber processing banner (only for non-Mux fallback) */}
+        {showProcessingBanner && !isMuxReady && (
           <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500/90 text-amber-950 text-xs font-medium text-center py-1 px-2 rounded-t-lg pointer-events-none">
             Ten film nie jest jeszcze zoptymalizowany — ładowanie może potrwać do 2 minut przy pierwszym uruchomieniu
           </div>
         )}
 
-        {/* Buffering bar — slim YouTube-style top bar */}
-        {isBuffering && !isLoading && (
+        {/* Buffering bar — slim YouTube-style top bar (hidden for HLS streams) */}
+        {isBuffering && !isLoading && !isMuxReady && (
           <div className="absolute top-0 left-0 right-0 z-10 h-[3px] pointer-events-none overflow-hidden rounded-t-lg">
             <div className="h-full w-1/3 bg-primary animate-[bufferSlide_1.5s_ease-in-out_infinite] rounded-full" />
           </div>
@@ -310,7 +324,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
           <BrandedVideoPlayer
             key={retryKey}
             ref={playerRef}
-            src={src}
+            src={effectiveSrc}
+            useHls={isMuxReady}
             subtitlesSrt={subtitlesSrt}
             videoId={videoId}
             onCanPlay={handleCanPlay}
@@ -323,8 +338,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         </div>
       </div>
 
-      {/* Stall message BELOW the player */}
-      {isStalled && !isLoading && (
+      {/* Stall message BELOW the player (hidden for HLS) */}
+      {isStalled && !isLoading && !isMuxReady && (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-muted border border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
             Film ładuje się — to może potrwać chwilę przy pierwszym odtwarzaniu
