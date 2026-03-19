@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import Hls from "hls.js";
 import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video/BrandedVideoPlayer";
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
