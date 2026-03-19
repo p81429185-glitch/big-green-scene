@@ -378,6 +378,7 @@ export function useVideoStore() {
       }
 
       // Upload file with real progress
+      console.log("Starting TUS upload, file size:", fileToUpload.size, "storage path:", storagePath);
       onProgress?.(0);
       await uploadFileTus(fileToUpload, storagePath, onProgress);
 
