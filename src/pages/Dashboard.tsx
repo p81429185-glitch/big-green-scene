@@ -87,6 +87,16 @@ const Dashboard = () => {
     addFiles(files, currentFolderId);
   };
 
+  const handleDualFilesSelected = (videoFile: File, audioFile: File) => {
+    // Use upload queue pattern: create a fake queue item for progress tracking
+    const queueId = crypto.randomUUID();
+    uploadVideoWithSeparateAudio(videoFile, audioFile, currentFolderId, () => {}).then(() => {
+      toast.success("Wideo z osobną ścieżką audio przesłane");
+    }).catch((err: any) => {
+      toast.error("Błąd przesyłania", { description: err?.message });
+    });
+  };
+
   const handleCreateFolder = (name: string) => {
     createFolder(name, currentFolderId);
   };
