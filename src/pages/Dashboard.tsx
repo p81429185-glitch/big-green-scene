@@ -114,6 +114,7 @@ const Dashboard = () => {
         onDeleteFolder={deleteFolder}
         activeView={activeView}
         isAdmin={isAdmin}
+        muxConnectionStatus={muxConnectionStatus}
         onViewChange={(view) => { setActiveView(view); if (view !== "home") setCurrentFolderId(null); }}
         onDropVideo={(videoId, folderId) => moveVideo(videoId, folderId)}
         onDropFolder={(folderId, targetParentId) => moveFolder(folderId, targetParentId)}
