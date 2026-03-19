@@ -63,7 +63,7 @@ const handleDragData = (e: React.DragEvent) => {
   return { videoId, folderId };
 };
 
-const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo, onDropFolder, isAdmin }: Props) => {
+const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFolderSelect, onDeleteFolder, activeView, onViewChange, onDropVideo, onDropFolder, isAdmin, muxConnectionStatus = "unknown" }: Props) => {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
