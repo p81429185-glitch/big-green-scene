@@ -274,6 +274,8 @@ export function useVideoStore() {
           cacheControl: "3600",
         },
         onError: (error) => {
+          console.error("TUS error:", error);
+          toast.error("Błąd uploadu", { description: String(error.message) });
           reject(new Error(`Upload failed: ${error.message}`));
         },
         onProgress: (bytesUploaded, bytesTotal) => {
@@ -327,6 +329,7 @@ export function useVideoStore() {
 
       // Strip metadata (GPS, device info) before upload
       const cleanFile = await stripVideoMetadata(file);
+      console.log("Strip done, file size:", cleanFile.size);
 
       // --- Faststart pre-processing ---
       let fileToUpload: File = cleanFile;
@@ -339,10 +342,10 @@ export function useVideoStore() {
           const headerSlice = cleanFile.slice(0, 65536);
           const headerBuffer = await headerSlice.arrayBuffer();
 
-          if (isFaststart(headerBuffer)) {
-            // Already optimized
-            isProcessed = true;
-          } else {
+          const isFast = isFaststart(headerBuffer);
+          console.log("Is faststart:", isFast);
+
+          if (isFast) {
             // Need to process — read full file
             const fullBuffer = await cleanFile.arrayBuffer();
             const SIZE_100MB = 100 * 1024 * 1024;
@@ -354,8 +357,10 @@ export function useVideoStore() {
               processedBuffer = relocateMoovToStart(fullBuffer);
             } else {
               // Worker processing for large files
+              console.log("Starting faststart worker for file size:", cleanFile.size);
               toast.info("Optymalizacja wideo dla szybkiego odtwarzania...");
               processedBuffer = await processFileInWorker(fullBuffer);
+              console.log("Worker done, processed size:", processedBuffer.byteLength);
             }
 
             fileToUpload = new File([processedBuffer], cleanFile.name, {
@@ -365,18 +370,21 @@ export function useVideoStore() {
           }
         } catch (err) {
           // Processing failed — upload original, don't block
-          console.error("Faststart pre-processing failed, uploading original:", err);
+          console.error("Worker/faststart failed:", err);
+          toast.error("Błąd optymalizacji", { description: String(err) });
           fileToUpload = cleanFile;
           isProcessed = false;
         }
       }
 
       // Upload file with real progress
+      console.log("Starting TUS upload, file size:", fileToUpload.size, "storage path:", storagePath);
       onProgress?.(0);
       await uploadFileTus(fileToUpload, storagePath, onProgress);
 
       // Insert metadata (90-95%)
       onProgress?.(91);
+      console.log("Inserting to DB, is_processed:", isProcessed);
       const title = file.name.replace(/\.[^/.]+$/, "");
       const { data: inserted, error: insertError } = await supabase
         .from("videos")
@@ -392,7 +400,11 @@ export function useVideoStore() {
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("DB insert error:", insertError);
+        toast.error("Błąd bazy danych", { description: insertError.message });
+        throw insertError;
+      }
       onProgress?.(95);
 
       const videoItem: VideoItem = {
