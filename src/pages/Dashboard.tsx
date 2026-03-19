@@ -19,6 +19,7 @@ import MuxSettingsView from "@/components/dashboard/MuxSettingsView";
 import type { MuxConnectionStatus } from "@/components/dashboard/MuxSettingsView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
