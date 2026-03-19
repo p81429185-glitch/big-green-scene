@@ -67,6 +67,7 @@ function generateCustomPlayerCode(
   storagePath: string,
   muxPlaybackId?: string | null,
   muxStatus?: string,
+  audioTrackUrl?: string | null,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
