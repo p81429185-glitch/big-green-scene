@@ -405,6 +405,28 @@ const VideoPlayer = () => {
     };
 
     load();
+
+    // Realtime subscription for mux_status changes
+    const channel = supabase
+      .channel(`video-mux-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "videos",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Video;
+          setVideo((prev) => prev ? { ...prev, ...updated } : prev);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   const handleShare = () => {
