@@ -314,6 +314,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
             useHls={isMuxReady}
             subtitlesSrt={subtitlesSrt}
             videoId={videoId}
+            audioTrackUrl={audioTrackUrl}
             onCanPlay={handleCanPlay}
             onError={handleError}
             onWaiting={handleWaiting}
