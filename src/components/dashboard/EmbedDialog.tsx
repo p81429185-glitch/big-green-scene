@@ -233,7 +233,7 @@ function generateCustomPlayerCode(
     bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
     w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
     w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
-  })();${secureFetchScript}
+  })();${hlsInitScript}${secureFetchScript}
   </script>
 </div>`;
 }
