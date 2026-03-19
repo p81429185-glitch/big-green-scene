@@ -246,6 +246,8 @@ const EmbedDialog = ({
   thumbnailUrl,
   transcription,
   storage_path,
+  mux_playback_id,
+  mux_status,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
