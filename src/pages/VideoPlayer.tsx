@@ -263,10 +263,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
           key={retryKey}
           ref={playerRef}
           src={src}
-          poster={poster}
           subtitlesSrt={subtitlesSrt}
           videoId={videoId}
-          autoPlay
           onCanPlay={handleCanPlay}
           onError={handleError}
           onWaiting={handleWaiting}
