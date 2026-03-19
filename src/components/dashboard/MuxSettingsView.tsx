@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ExternalLink, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const MuxSettingsView = () => {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleTestConnection = async () => {
     setTesting(true);
@@ -29,6 +31,32 @@ const MuxSettingsView = () => {
     }
   };
 
+  const handleBackfillAll = async () => {
+    setBackfilling(true);
+    setBackfillResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("submit-to-mux", {
+        body: { backfill_all: true },
+      });
+
+      if (error) {
+        setBackfillResult({ success: false, message: `Błąd: ${error.message}` });
+      } else if (data?.success) {
+        const msg = data.processed > 0
+          ? `Wysłano ${data.processed} z ${data.total} filmów do Mux${data.errors > 0 ? ` (${data.errors} błędów)` : ""}`
+          : "Brak filmów do przetworzenia — wszystkie są już w Mux";
+        setBackfillResult({ success: true, message: msg });
+      } else {
+        setBackfillResult({ success: false, message: data?.error || "Nieznany błąd" });
+      }
+    } catch (err) {
+      setBackfillResult({ success: false, message: String(err) });
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mux-webhook`;
 
   return (
@@ -44,7 +72,7 @@ const MuxSettingsView = () => {
         <div>
           <h3 className="text-sm font-medium">Status połączenia</h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Klucze API Mux są przechowywane bezpiecznie w ustawieniach projektu.
+            Klucze API Mux (Token ID, Token Secret, Webhook Secret) są przechowywane bezpiecznie w ustawieniach projektu.
           </p>
         </div>
 
@@ -77,7 +105,7 @@ const MuxSettingsView = () => {
         <div>
           <h3 className="text-sm font-medium">Webhook URL</h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Skopiuj ten adres i wklej go w ustawieniach webhooków w panelu Mux.
+            Skopiuj ten adres i wklej go w ustawieniach webhooków w panelu Mux. Sekret webhooka (Webhook Secret) jest weryfikowany automatycznie.
           </p>
         </div>
 
@@ -105,6 +133,42 @@ const MuxSettingsView = () => {
           <ExternalLink className="h-3.5 w-3.5" />
           Otwórz ustawienia webhooków Mux
         </a>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-medium">Przetwarzanie istniejących filmów</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Wyślij wszystkie filmy, które nie zostały jeszcze przetworzone przez Mux, do transkodowania HLS.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={handleBackfillAll} disabled={backfilling} variant="outline" size="sm">
+            {backfilling ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Przetwarzanie...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Przetwórz wszystkie filmy przez Mux
+              </>
+            )}
+          </Button>
+
+          {backfillResult && (
+            <div className={`flex items-center gap-2 text-sm ${backfillResult.success ? "text-primary" : "text-destructive"}`}>
+              {backfillResult.success ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
+              <span>{backfillResult.message}</span>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card className="p-6 space-y-3">
