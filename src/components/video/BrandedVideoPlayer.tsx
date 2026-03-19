@@ -339,6 +339,49 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       return () => document.removeEventListener("fullscreenchange", onFsChange);
     }, []);
 
+    // HLS initialization
+    useEffect(() => {
+      const v = videoRef.current;
+      if (!v || !src) return;
+
+      // Clean up previous HLS instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      if (useHls && src.endsWith(".m3u8")) {
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+          });
+          hlsRef.current = hls;
+          hls.loadSource(src);
+          hls.attachMedia(v);
+          hls.on(Hls.Events.ERROR, (_event, data) => {
+            if (data.fatal) {
+              console.error("HLS fatal error:", data);
+              onError?.();
+            }
+          });
+        } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
+          // Safari native HLS
+          v.src = src;
+        }
+      } else {
+        // Direct MP4 playback
+        v.src = src;
+      }
+
+      return () => {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      };
+    }, [src, useHls, onError]);
+
     // Watch time tracking
     const watchTimeRef = useRef(0);
     const viewerSessionRef = useRef<string>("");
