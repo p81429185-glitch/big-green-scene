@@ -131,7 +131,7 @@ const Dashboard = () => {
         </header>
 
         <main className="flex-1 p-4 md:p-6 space-y-6">
-          {activeView !== "analytics" && activeView !== "brandkit" && (
+          {activeView !== "analytics" && activeView !== "brandkit" && activeView !== "mux" && (
             <ActionCards
               totalPlays={totalPlays}
               onUploadClick={() => setUploadOpen(true)}
