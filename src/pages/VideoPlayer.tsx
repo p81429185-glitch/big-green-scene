@@ -83,6 +83,14 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
   const processingDelayRef = useRef<NodeJS.Timeout | null>(null);
+  const bufferTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBufferTimeout = useCallback(() => {
+    if (bufferTimeoutRef.current) {
+      clearTimeout(bufferTimeoutRef.current);
+      bufferTimeoutRef.current = null;
+    }
+  }, []);
 
   const handleCanPlay = useCallback(() => {
     setIsLoading(false);
@@ -93,10 +101,11 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setCanPlayFired(true);
     setVideoError(false);
     setIsBuffering(false);
+    clearBufferTimeout();
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
     if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
-  }, []);
+  }, [clearBufferTimeout]);
 
   const handleError = useCallback(() => {
     if (!isProcessed) {
@@ -115,16 +124,21 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setShowProcessingOverlay(false);
     setCanPlayFired(false);
     setProgress(0);
+    clearBufferTimeout();
     setRetryKey(prev => prev + 1);
-  }, []);
+  }, [clearBufferTimeout]);
 
   const handleWaiting = useCallback(() => {
-    setIsBuffering(true);
-  }, []);
+    clearBufferTimeout();
+    bufferTimeoutRef.current = setTimeout(() => {
+      setIsBuffering(true);
+    }, 3000);
+  }, [clearBufferTimeout]);
 
   const handlePlaying = useCallback(() => {
+    clearBufferTimeout();
     setIsBuffering(false);
-  }, []);
+  }, [clearBufferTimeout]);
 
   // Delayed processing overlay — only show after 10s if canplay hasn't fired and not processed
   useEffect(() => {
@@ -210,13 +224,10 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         </div>
       )}
 
-      {/* Buffering spinner overlay */}
+      {/* Buffering bar — slim YouTube-style top bar */}
       {isBuffering && !isLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-2 bg-black/60 rounded-lg px-6 py-4">
-            <Loader2 className="h-8 w-8 animate-spin text-white" />
-            <span className="text-white text-sm font-medium">Buforowanie...</span>
-          </div>
+        <div className="absolute top-0 left-0 right-0 z-10 h-[3px] pointer-events-none overflow-hidden rounded-t-lg">
+          <div className="h-full w-1/3 bg-primary animate-[bufferSlide_1.5s_ease-in-out_infinite] rounded-full" />
         </div>
       )}
 
