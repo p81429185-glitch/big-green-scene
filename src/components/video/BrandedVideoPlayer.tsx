@@ -482,10 +482,20 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       ? seekPosition * 100
       : duration ? (currentTime / duration) * 100 : 0;
 
+    // Compute aspect-ratio CSS
+    const arMap: Record<string, string> = { "16:9": "16/9", "9:16": "9/16", "1:1": "1/1", "4:3": "4/3" };
+    const arCss = arMap[aspectRatio] || "16/9";
+    const isPortrait = aspectRatio === "9:16";
+
+    const containerStyle: React.CSSProperties = isFullscreen
+      ? {}
+      : { aspectRatio: arCss, ...(isPortrait ? { maxHeight: "80vh", margin: "0 auto" } : {}) };
+
     return (
       <div
         ref={containerRef}
-        className="relative bg-black rounded-lg overflow-hidden aspect-video group cursor-pointer select-none"
+        className={`relative bg-black rounded-lg overflow-hidden group cursor-pointer select-none ${isPortrait ? "max-w-[50%] mx-auto" : "w-full"}`}
+        style={containerStyle}
         onMouseEnter={() => setShowControls(true)}
         onMouseLeave={() => playing && setShowControls(false)}
         onClick={togglePlay}
@@ -495,7 +505,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           muted={hasAudioTrack ? true : muted}
           onTimeUpdate={handleTimeUpdate}
           className="w-full h-full object-contain"
-          style={isFullscreen ? {} : videoStyle}
+          style={isFullscreen ? {} : { ...videoStyle, aspectRatio: arCss }}
           playsInline
         />
         {/* Hidden audio element for separate audio track */}
