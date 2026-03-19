@@ -87,6 +87,8 @@ function generateCustomPlayerCode(
 
   const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
   const directUrl = `${supabaseUrl}/storage/v1/object/public/videos/${storagePath}`;
+  const isMuxReady = !!(muxPlaybackId && muxStatus === "ready");
+  const hlsSrc = isMuxReady ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : "";
   
   // Loading overlay HTML
   const loadingOverlayHtml = `
@@ -144,10 +146,32 @@ function generateCustomPlayerCode(
       fetchAndCache();
     })();`;
 
+  // HLS init script for Mux-ready videos
+  const hlsInitScript = isMuxReady ? `
+    (function(){
+      var v=document.getElementById("${vid}");
+      var hlsSrc="${hlsSrc}";
+      if(typeof Hls!=="undefined"&&Hls.isSupported()){
+        var hls=new Hls({startLevel:-1,autoStartLoad:true});
+        hls.loadSource(hlsSrc);
+        hls.attachMedia(v);
+        hls.on(Hls.Events.MANIFEST_PARSED,function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
+      }else if(v.canPlayType("application/vnd.apple.mpegurl")){
+        v.src=hlsSrc;
+        v.addEventListener("loadedmetadata",function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
+      }
+    })();` : "";
+
+  // For Mux: use hls.js CDN + preload="auto", no timeout fallback
+  // For direct: keep existing behavior with timeout fallback
+  const hlsCdnTag = isMuxReady ? `\n  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"><\/script>` : "";
+  const videoPreload = isMuxReady ? "auto" : "metadata";
+  const videoSrcAttr = isMuxReady ? "" : (skipDomainCheck ? ` src="${directUrl}"` : "");
+
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video${skipDomainCheck ? ` src="${directUrl}"` : ""} preload="metadata"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
@@ -192,7 +216,7 @@ function generateCustomPlayerCode(
     <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" onclick="(function(){var w=document.getElementById('${uid}');if(w.requestFullscreen)w.requestFullscreen();else if(w.webkitRequestFullscreen)w.webkitRequestFullscreen();})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     </button>
-  </div>
+  </div>${hlsCdnTag}
   <script>
   (function(){
     var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}");
@@ -200,8 +224,7 @@ function generateCustomPlayerCode(
     function hideLoading(){if(lo)lo.style.display="none";}
     function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
     v.addEventListener("loadedmetadata",hideLoading);
-    v.addEventListener("canplay",hideLoading);
-    setTimeout(hideLoading,3000);
+    v.addEventListener("canplay",hideLoading);${isMuxReady ? "" : "\n    setTimeout(hideLoading,3000);"}
     bb.addEventListener("click",function(){hideLoading();toggle();});
     v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
