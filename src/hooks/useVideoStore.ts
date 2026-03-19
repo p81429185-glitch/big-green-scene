@@ -507,11 +507,94 @@ export function useVideoStore() {
     return getPublicUrl("videos", storagePath);
   }, []);
 
+  const uploadVideoWithSeparateAudio = useCallback(
+    async (
+      videoFile: File,
+      audioFile: File,
+      folderId: string | null,
+      onProgress?: (pct: number) => void
+    ) => {
+      const uuid = crypto.randomUUID();
+      const videoStoragePath = `${uuid}_${sanitizeFileName(videoFile.name)}`;
+      const audioStoragePath = `${uuid}_audio.mp3`;
+
+      // Upload video file via TUS
+      onProgress?.(0);
+      await uploadFileTus(videoFile, videoStoragePath, (pct) => {
+        onProgress?.(Math.round(pct * 0.6)); // 0-57% for video
+      });
+
+      // Upload audio file to audio-tracks bucket
+      onProgress?.(60);
+      const { error: audioError } = await supabase.storage
+        .from("audio-tracks")
+        .upload(audioStoragePath, audioFile, {
+          contentType: audioFile.type || "audio/mpeg",
+          upsert: true,
+        });
+      if (audioError) {
+        console.error("Audio upload error:", audioError);
+        toast.error("Błąd uploadu audio", { description: audioError.message });
+        throw audioError;
+      }
+      onProgress?.(80);
+
+      // Insert metadata
+      const title = videoFile.name.replace(/\.[^/.]+$/, "");
+      const { data: inserted, error: insertError } = await supabase
+        .from("videos")
+        .insert({
+          title,
+          file_name: videoFile.name,
+          size: videoFile.size + audioFile.size,
+          folder_id: folderId,
+          storage_path: videoStoragePath,
+          audio_track_path: audioStoragePath,
+          is_processed: true,
+          processing_status: "ready",
+        } as any)
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("DB insert error:", insertError);
+        toast.error("Błąd bazy danych", { description: insertError.message });
+        throw insertError;
+      }
+      onProgress?.(90);
+
+      const videoItem: VideoItem = {
+        ...inserted,
+        thumbnail_url: null,
+        is_processed: true,
+        processing_status: "ready",
+      } as VideoItem;
+
+      // Generate thumbnail
+      generateThumbnail(videoFile, inserted.id).then((thumbUrl) => {
+        if (thumbUrl) {
+          setVideos((prev) => prev.map((v) => v.id === inserted.id ? { ...v, thumbnail_url: thumbUrl } : v));
+        }
+      });
+
+      // Submit to Mux
+      supabase.functions.invoke("submit-to-mux", {
+        body: { video_id: inserted.id, storage_path: videoStoragePath },
+      }).catch(() => {});
+
+      onProgress?.(100);
+      setVideos((prev) => [videoItem, ...prev]);
+      return videoItem;
+    },
+    []
+  );
+
   return {
     videos,
     folders,
     loading,
     uploadVideo,
+    uploadVideoWithSeparateAudio,
     deleteVideo,
     incrementPlays,
     toggleFavorite,
