@@ -139,7 +139,18 @@ const DashboardSidebar = ({ open, onClose, folders = [], currentFolderId, onFold
               }`}
             >
               <Video className="h-4 w-4" />
-              Mux Settings
+              <span className="flex-1 text-left">Ustawienia Mux</span>
+              <span className={`inline-block h-2 w-2 rounded-full ${
+                muxConnectionStatus === "connected" ? "bg-green-500" :
+                muxConnectionStatus === "configured" ? "bg-yellow-500" :
+                muxConnectionStatus === "not-configured" ? "bg-red-500" :
+                "bg-muted-foreground/40"
+              }`} title={
+                muxConnectionStatus === "connected" ? "Połączono" :
+                muxConnectionStatus === "configured" ? "Skonfigurowano — nie przetestowano" :
+                muxConnectionStatus === "not-configured" ? "Nie skonfigurowano" :
+                "Nieznany"
+              } />
             </button>
           </>
         )}
