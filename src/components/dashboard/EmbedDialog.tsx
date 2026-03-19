@@ -286,6 +286,7 @@ const EmbedDialog = ({
   mux_playback_id,
   mux_status,
   audio_track_path,
+  aspect_ratio,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
