@@ -75,26 +75,31 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
-  const [showProcessingBanner, setShowProcessingBanner] = useState(!isProcessed);
+  const [showProcessingBanner, setShowProcessingBanner] = useState(false);
+  const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [canPlayFired, setCanPlayFired] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
+  const processingDelayRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCanPlay = useCallback(() => {
     setIsLoading(false);
     setLoadTimeout(false);
     setProgress(100);
     setShowProcessingBanner(false);
+    setShowProcessingOverlay(false);
+    setCanPlayFired(true);
     setVideoError(false);
     setIsBuffering(false);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
+    if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
   }, []);
 
   const handleError = useCallback(() => {
     if (!isProcessed) {
-      // Video failed to load AND is not processed — show full processing screen
       setVideoError(true);
       setIsLoading(false);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -107,6 +112,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setLoadTimeout(false);
     setVideoError(false);
     setIsBuffering(false);
+    setShowProcessingOverlay(false);
+    setCanPlayFired(false);
     setProgress(0);
     setRetryKey(prev => prev + 1);
   }, []);
@@ -119,25 +126,44 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setIsBuffering(false);
   }, []);
 
-  // Update processing banner when isProcessed changes (via realtime)
+  // Delayed processing overlay — only show after 10s if canplay hasn't fired and not processed
+  useEffect(() => {
+    if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
+
+    if (!isProcessed && !canPlayFired) {
+      processingDelayRef.current = setTimeout(() => {
+        setShowProcessingOverlay(true);
+        // Also show the banner
+        setShowProcessingBanner(true);
+      }, 10000);
+    } else {
+      setShowProcessingOverlay(false);
+      setShowProcessingBanner(false);
+    }
+
+    return () => {
+      if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
+    };
+  }, [isProcessed, canPlayFired, retryKey]);
+
+  // Update when isProcessed changes (via realtime)
   useEffect(() => {
     if (isProcessed) {
       setShowProcessingBanner(false);
+      setShowProcessingOverlay(false);
+      if (processingDelayRef.current) clearTimeout(processingDelayRef.current);
       if (videoError) {
-        // Video became processed, retry loading
         handleRetry();
       }
     }
   }, [isProcessed, videoError, handleRetry]);
 
   useEffect(() => {
-    // Reset state when src changes
     setIsLoading(true);
     setLoadTimeout(false);
     setVideoError(false);
     setProgress(0);
 
-    // Animated progress bar (fake progress for UX)
     progressRef.current = setInterval(() => {
       setProgress(prev => {
         if (prev >= 90) return prev;
@@ -145,7 +171,6 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
       });
     }, 500);
 
-    // Timeout detection - 15 seconds
     timeoutRef.current = setTimeout(() => {
       setLoadTimeout(true);
       if (progressRef.current) clearInterval(progressRef.current);
@@ -157,8 +182,8 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     };
   }, [src, retryKey]);
 
-  // Full-screen processing/error fallback
-  if (videoError && !isProcessed) {
+  // Full-screen processing overlay — only after 10s delay OR video error + not processed
+  if (showProcessingOverlay && videoError && !isProcessed) {
     return (
       <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
