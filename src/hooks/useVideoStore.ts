@@ -20,6 +20,7 @@ export interface VideoItem {
   is_favorite: boolean;
   is_processed: boolean;
   processing_status: string;
+  audio_track_path: string | null;
 }
 
 export interface FolderItem {
