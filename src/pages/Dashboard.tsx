@@ -15,6 +15,7 @@ import CreateFolderDialog from "@/components/dashboard/CreateFolderDialog";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import BrandKitView from "@/components/dashboard/BrandKitView";
 import AdminUsersView from "@/components/dashboard/AdminUsersView";
+import MuxSettingsView from "@/components/dashboard/MuxSettingsView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
 
