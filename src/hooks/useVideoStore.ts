@@ -355,8 +355,10 @@ export function useVideoStore() {
               processedBuffer = relocateMoovToStart(fullBuffer);
             } else {
               // Worker processing for large files
+              console.log("Starting faststart worker for file size:", cleanFile.size);
               toast.info("Optymalizacja wideo dla szybkiego odtwarzania...");
               processedBuffer = await processFileInWorker(fullBuffer);
+              console.log("Worker done, processed size:", processedBuffer.byteLength);
             }
 
             fileToUpload = new File([processedBuffer], cleanFile.name, {
