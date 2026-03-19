@@ -28,7 +28,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const { isAuthenticated, loading: authLoading, isAdmin, userEmail } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users">("home");
+  const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux">("home");
   const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
