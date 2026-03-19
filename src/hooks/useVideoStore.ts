@@ -421,6 +421,14 @@ export function useVideoStore() {
         }
       });
 
+      // Submit to Mux for HLS transcoding (fire-and-forget)
+      supabase.functions.invoke("submit-to-mux", {
+        body: { video_id: inserted.id, storage_path: storagePath },
+      }).then(({ error }) => {
+        if (error) console.error("Mux submit error (non-blocking):", error);
+        else console.log("Submitted to Mux for processing:", inserted.id);
+      });
+
       onProgress?.(100);
       setVideos((prev) => [videoItem, ...prev]);
       return videoItem;
