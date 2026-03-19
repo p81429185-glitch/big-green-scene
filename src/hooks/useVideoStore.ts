@@ -400,7 +400,11 @@ export function useVideoStore() {
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("DB insert error:", insertError);
+        toast.error("Błąd bazy danych", { description: insertError.message });
+        throw insertError;
+      }
       onProgress?.(95);
 
       const videoItem: VideoItem = {
