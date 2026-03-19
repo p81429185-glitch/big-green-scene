@@ -317,6 +317,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
             subtitlesSrt={subtitlesSrt}
             videoId={videoId}
             audioTrackUrl={audioTrackUrl}
+            aspectRatio={aspectRatio}
             onCanPlay={handleCanPlay}
             onError={handleError}
             onWaiting={handleWaiting}
