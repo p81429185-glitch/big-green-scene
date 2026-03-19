@@ -187,7 +187,7 @@ const Dashboard = () => {
           ) : activeView === "users" && isAdmin ? (
             <AdminUsersView />
           ) : activeView === "mux" && isAdmin ? (
-            <MuxSettingsView />
+            <MuxSettingsView onConnectionStatusChange={setMuxConnectionStatus} />
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
