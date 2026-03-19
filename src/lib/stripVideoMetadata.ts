@@ -289,7 +289,7 @@ async function stripLargeFile(file: File): Promise<File> {
     blobParts.push(file.slice(0, moovStart));
   }
   blobParts.push(newMoovHeader);
-  filteredChildren.forEach((c) => blobParts.push(c));
+  filteredChildren.forEach((c) => blobParts.push(new Blob([c])));
   if (moovStart + moovAtom.size < file.size) {
     blobParts.push(file.slice(moovStart + moovAtom.size));
   }
