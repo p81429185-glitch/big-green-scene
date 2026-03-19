@@ -449,7 +449,6 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       >
         <video
           ref={videoRef}
-          src={src}
           muted={muted}
           onTimeUpdate={handleTimeUpdate}
           className="w-full h-full object-contain"
