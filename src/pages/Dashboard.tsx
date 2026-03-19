@@ -19,6 +19,7 @@ import MuxSettingsView from "@/components/dashboard/MuxSettingsView";
 import type { MuxConnectionStatus } from "@/components/dashboard/MuxSettingsView";
 import { useVideoStore } from "@/hooks/useVideoStore";
 import { useUploadQueue } from "@/hooks/useUploadQueue";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -31,7 +32,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux">("home");
   const [muxConnectionStatus, setMuxConnectionStatus] = useState<MuxConnectionStatus>("unknown");
-  const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
+  const { videos, folders, loading: videosLoading, uploadVideo, uploadVideoWithSeparateAudio, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
     queue, minimized, setMinimized, addFiles, clearQueue,
@@ -85,6 +86,16 @@ const Dashboard = () => {
 
   const handleFilesSelected = (files: File[]) => {
     addFiles(files, currentFolderId);
+  };
+
+  const handleDualFilesSelected = (videoFile: File, audioFile: File) => {
+    // Use upload queue pattern: create a fake queue item for progress tracking
+    const queueId = crypto.randomUUID();
+    uploadVideoWithSeparateAudio(videoFile, audioFile, currentFolderId, () => {}).then(() => {
+      toast.success("Wideo z osobną ścieżką audio przesłane");
+    }).catch((err: any) => {
+      toast.error("Błąd przesyłania", { description: err?.message });
+    });
   };
 
   const handleCreateFolder = (name: string) => {
@@ -205,6 +216,7 @@ const Dashboard = () => {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onFilesSelected={handleFilesSelected}
+        onDualFilesSelected={handleDualFilesSelected}
       />
       <CreateFolderDialog
         open={folderOpen}

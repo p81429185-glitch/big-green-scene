@@ -46,6 +46,7 @@ interface EmbedDialogProps {
   storage_path?: string;
   mux_playback_id?: string | null;
   mux_status?: string;
+  audio_track_path?: string | null;
 }
 
 function generateCustomPlayerCode(
@@ -66,9 +67,11 @@ function generateCustomPlayerCode(
   storagePath: string,
   muxPlaybackId?: string | null,
   muxStatus?: string,
+  audioTrackUrl?: string | null,
 ) {
   const uid = "p" + Math.random().toString(36).slice(2, 10);
   const vid = "v" + uid;
+  const audId = "a" + uid;
   const prog = "bar" + uid;
   const fill = "fill" + uid;
   const timeEl = "time" + uid;
@@ -168,10 +171,34 @@ function generateCustomPlayerCode(
   const videoPreload = isMuxReady ? "auto" : "metadata";
   const videoSrcAttr = isMuxReady ? "" : (skipDomainCheck ? ` src="${directUrl}"` : "");
 
+  const hasAudio = !!audioTrackUrl;
+  const videoMutedAttr = hasAudio ? " muted" : "";
+  const audioHtml = hasAudio ? `\n  <audio id="${audId}" src="${audioTrackUrl}" preload="auto" style="display:none;"></audio>` : "";
+
+  // Audio sync script for embed
+  const audioSyncScript = hasAudio ? `
+    (function(){
+      var v=document.getElementById("${vid}"),a=document.getElementById("${audId}");
+      v.muted=true;
+      v.addEventListener("play",function(){a.currentTime=v.currentTime;a.play();});
+      v.addEventListener("pause",function(){a.pause();});
+      v.addEventListener("seeked",function(){a.currentTime=v.currentTime;});
+      setInterval(function(){if(!v.paused&&Math.abs(v.currentTime-a.currentTime)>0.3){a.currentTime=v.currentTime;}},5000);
+    })();` : "";
+
+  // Override volume controls for audio track mode
+  const volumeMuteOnclick = hasAudio
+    ? `(function(){var a=document.getElementById('${audId}');var s=document.getElementById('${volSlider}');a.muted=!a.muted;s.value=a.muted?0:a.volume;})()`
+    : `(function(){var v=document.getElementById('${vid}');var s=document.getElementById('${volSlider}');v.muted=!v.muted;s.value=v.muted?0:v.volume;})()`;
+
+  const volumeInputOnclick = hasAudio
+    ? `(function(el){var a=document.getElementById('${audId}');a.volume=parseFloat(el.value);a.muted=parseFloat(el.value)===0;})(this)`
+    : `(function(el){var v=document.getElementById('${vid}');v.volume=parseFloat(el.value);v.muted=parseFloat(el.value)===0;})(this)`;
+
   return `<div style="position:relative;${sizeStyle}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>
+  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} style="width:100%;display:block;cursor:pointer;" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
@@ -199,10 +226,10 @@ function generateCustomPlayerCode(
       <div style="width:0%;height:100%;background:${brandProgressColor};border-radius:2px;" id="${fill}"></div>
     </div>
     <!-- Volume -->
-    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" id="mute${uid}" onclick="(function(){var v=document.getElementById('${vid}');var s=document.getElementById('${volSlider}');v.muted=!v.muted;s.value=v.muted?0:v.volume;})()">
+    <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;" id="mute${uid}" onclick="${volumeMuteOnclick}">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     </button>
-    <input type="range" min="0" max="1" step="0.05" value="1" id="${volSlider}" style="width:60px;height:4px;cursor:pointer;accent-color:${brandProgressColor};" oninput="(function(el){var v=document.getElementById('${vid}');v.volume=parseFloat(el.value);v.muted=parseFloat(el.value)===0;})(this)" />
+    <input type="range" min="0" max="1" step="0.05" value="1" id="${volSlider}" style="width:60px;height:4px;cursor:pointer;accent-color:${brandProgressColor};" oninput="${volumeInputOnclick}" />
     <!-- Quality -->
     <div style="position:relative;">
       <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;font-size:11px;font-family:sans-serif;" id="qbtn${uid}" onclick="(function(){var m=document.getElementById('${qualMenu}');m.style.display=m.style.display==='none'?'block':'none';})()">HD</button>
@@ -233,7 +260,7 @@ function generateCustomPlayerCode(
     bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
     w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
     w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
-  })();${hlsInitScript}${secureFetchScript}
+  })();${audioSyncScript}${hlsInitScript}${secureFetchScript}
   </script>
 </div>`;
 }
@@ -248,6 +275,7 @@ const EmbedDialog = ({
   storage_path,
   mux_playback_id,
   mux_status,
+  audio_track_path,
 }: EmbedDialogProps) => {
   const [embedTab, setEmbedTab] = useState("inline");
   const [sizeMode, setSizeMode] = useState("responsive");
@@ -294,6 +322,9 @@ const EmbedDialog = ({
   const embedCode = useMemo(() => {
     let rawCode = "";
     if (embedTab === "inline" || embedTab === "llm") {
+      const audioPublicUrl = audio_track_path
+        ? `${supabaseUrl}/storage/v1/object/public/audio-tracks/${audio_track_path}`
+        : null;
       rawCode = generateCustomPlayerCode(
         brandColor, brandIconColor, brandProgressColor,
         brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
@@ -303,6 +334,7 @@ const EmbedDialog = ({
         storage_path || "",
         mux_playback_id,
         mux_status,
+        audioPublicUrl,
       );
     } else if (embedTab === "popover") {
       if (popoverMode === "thumbnail") {
@@ -322,7 +354,7 @@ const EmbedDialog = ({
     popoverMode, popoverWidth, popoverHeight, popoverResponsive, popoverText,
     domainRestricted, allowedDomain,
     brandColor, brandIconColor, brandProgressColor, brandLogoUrl, brandPlayBgColor, brandSkipBgColor,
-    supabaseUrl, anonKey, mux_playback_id, mux_status, storage_path,
+    supabaseUrl, anonKey, mux_playback_id, mux_status, storage_path, audio_track_path,
   ]);
 
   const handleCopy = async () => {

@@ -41,6 +41,7 @@ interface Video {
   mux_asset_id: string | null;
   mux_playback_id: string | null;
   mux_status: string;
+  audio_track_path: string | null;
 }
 
 interface Folder {
@@ -76,9 +77,10 @@ interface VideoLoadingWrapperProps {
   muxStatus: string;
   muxPlaybackId: string | null;
   muxAssetId: string | null;
+  audioTrackUrl: string | null;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -312,6 +314,7 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
             useHls={isMuxReady}
             subtitlesSrt={subtitlesSrt}
             videoId={videoId}
+            audioTrackUrl={audioTrackUrl}
             onCanPlay={handleCanPlay}
             onError={handleError}
             onWaiting={handleWaiting}
@@ -529,6 +532,11 @@ const VideoPlayer = () => {
               muxStatus={video.mux_status || "pending"}
               muxPlaybackId={video.mux_playback_id || null}
               muxAssetId={video.mux_asset_id || null}
+              audioTrackUrl={
+                (video as any).audio_track_path
+                  ? supabase.storage.from("audio-tracks").getPublicUrl((video as any).audio_track_path).data.publicUrl
+                  : null
+              }
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
@@ -647,6 +655,7 @@ const VideoPlayer = () => {
         storage_path={video.storage_path}
         mux_playback_id={video.mux_playback_id}
         mux_status={video.mux_status}
+        audio_track_path={(video as any).audio_track_path}
       />
     </div>
   );

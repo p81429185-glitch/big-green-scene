@@ -1,4 +1,5 @@
-import { Play, Trash2, FileVideo, Heart } from "lucide-react";
+import { Play, Trash2, FileVideo, Heart, Music } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -84,7 +85,15 @@ const TopPlayedTable = ({ videos, onDelete, onToggleFavorite }: Props) => {
                 )}
               </TableCell>
               <TableCell>
-                <p className="font-medium">{video.title}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium">{video.title}</p>
+                  {(video as any).audio_track_path && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
+                      <Music className="h-2.5 w-2.5" />
+                      MP3
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">{video.file_name}</p>
               </TableCell>
               <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
