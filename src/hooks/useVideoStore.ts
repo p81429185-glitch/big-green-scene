@@ -21,6 +21,7 @@ export interface VideoItem {
   is_processed: boolean;
   processing_status: string;
   audio_track_path: string | null;
+  aspect_ratio: string | null;
 }
 
 export interface FolderItem {
