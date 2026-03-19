@@ -645,6 +645,8 @@ const VideoPlayer = () => {
         thumbnailUrl={video.thumbnail_url}
         transcription={transcription}
         storage_path={video.storage_path}
+        mux_playback_id={video.mux_playback_id}
+        mux_status={video.mux_status}
       />
     </div>
   );
