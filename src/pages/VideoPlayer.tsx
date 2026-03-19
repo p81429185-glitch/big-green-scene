@@ -532,6 +532,11 @@ const VideoPlayer = () => {
               muxStatus={video.mux_status || "pending"}
               muxPlaybackId={video.mux_playback_id || null}
               muxAssetId={video.mux_asset_id || null}
+              audioTrackUrl={
+                (video as any).audio_track_path
+                  ? supabase.storage.from("audio-tracks").getPublicUrl((video as any).audio_track_path).data.publicUrl
+                  : null
+              }
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
