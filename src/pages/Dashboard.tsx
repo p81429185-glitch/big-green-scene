@@ -42,6 +42,11 @@ const Dashboard = () => {
     if (!authLoading && !isAuthenticated) navigate("/auth", { replace: true });
   }, [isAuthenticated, authLoading, navigate]);
 
+  // Default admin view to Mux settings
+  useEffect(() => {
+    if (!authLoading && isAdmin) setActiveView("mux");
+  }, [authLoading, isAdmin]);
+
   const filteredVideos = useMemo(() => {
     let result = activeView === "favorites"
       ? videos.filter((v) => v.is_favorite)
