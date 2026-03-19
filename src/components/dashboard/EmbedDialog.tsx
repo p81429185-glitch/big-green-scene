@@ -195,7 +195,10 @@ function generateCustomPlayerCode(
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
     function hideLoading(){if(lo)lo.style.display="none";}
     function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
+    v.addEventListener("loadedmetadata",hideLoading);
     v.addEventListener("canplay",hideLoading);
+    setTimeout(hideLoading,3000);
+    bb.addEventListener("click",function(){hideLoading();toggle();});
     v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
     v.addEventListener("pause",function(){ico.innerHTML='<polygon points="5,3 19,12 5,21" fill="${brandIconColor}"/>';});
