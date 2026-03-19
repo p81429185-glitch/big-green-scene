@@ -528,6 +528,7 @@ const VideoPlayer = () => {
               fileSize={video.size}
               muxStatus={video.mux_status || "pending"}
               muxPlaybackId={video.mux_playback_id || null}
+              muxAssetId={video.mux_asset_id || null}
             />
             <Button variant="outline" className="w-full mt-3" asChild>
               <a href="https://notebooklm.google.com/" target="_blank" rel="noopener noreferrer">
