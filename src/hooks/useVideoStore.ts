@@ -327,6 +327,7 @@ export function useVideoStore() {
 
       // Strip metadata (GPS, device info) before upload
       const cleanFile = await stripVideoMetadata(file);
+      console.log("Strip done, file size:", cleanFile.size);
 
       // --- Faststart pre-processing ---
       let fileToUpload: File = cleanFile;
