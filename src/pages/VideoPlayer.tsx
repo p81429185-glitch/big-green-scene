@@ -224,13 +224,10 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         </div>
       )}
 
-      {/* Buffering spinner overlay */}
+      {/* Buffering bar — slim YouTube-style top bar */}
       {isBuffering && !isLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-2 bg-black/60 rounded-lg px-6 py-4">
-            <Loader2 className="h-8 w-8 animate-spin text-white" />
-            <span className="text-white text-sm font-medium">Buforowanie...</span>
-          </div>
+        <div className="absolute top-0 left-0 right-0 z-10 h-[3px] pointer-events-none overflow-hidden rounded-t-lg">
+          <div className="h-full w-1/3 bg-primary animate-[bufferSlide_1.5s_ease-in-out_infinite] rounded-full" />
         </div>
       )}
 
