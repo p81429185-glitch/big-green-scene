@@ -1,1 +1,10 @@
 project_id = "bdwhqsjbfnbxthfjdbfw"
+
+[functions.submit-to-mux]
+verify_jwt = false
+
+[functions.mux-webhook]
+verify_jwt = false
+
+[functions.test-mux-connection]
+verify_jwt = false
