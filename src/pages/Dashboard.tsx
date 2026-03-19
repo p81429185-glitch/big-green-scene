@@ -30,6 +30,7 @@ const Dashboard = () => {
   const { isAuthenticated, loading: authLoading, isAdmin, userEmail } = useAuth();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<"home" | "favorites" | "library" | "analytics" | "brandkit" | "users" | "mux">("home");
+  const [muxConnectionStatus, setMuxConnectionStatus] = useState<MuxConnectionStatus>("unknown");
   const { videos, folders, loading: videosLoading, uploadVideo, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
