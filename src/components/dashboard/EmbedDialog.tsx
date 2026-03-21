@@ -156,14 +156,18 @@ function generateCustomPlayerCode(
     (function(){
       var v=document.getElementById("${vid}");
       var hlsSrc="${hlsSrc}";
+      var directFallback="${skipDomainCheck ? directUrl : ''}";
       if(typeof Hls!=="undefined"&&Hls.isSupported()){
         var hls=new Hls({startLevel:-1,autoStartLoad:true});
         hls.loadSource(hlsSrc);
         hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED,function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
+        hls.on(Hls.Events.ERROR,function(ev,data){if(data.fatal&&directFallback){v.src=directFallback;}});
       }else if(v.canPlayType("application/vnd.apple.mpegurl")){
         v.src=hlsSrc;
         v.addEventListener("loadedmetadata",function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
+      }else if(directFallback){
+        v.src=directFallback;
       }
     })();` : "";
 
