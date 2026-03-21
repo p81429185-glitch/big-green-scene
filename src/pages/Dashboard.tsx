@@ -89,11 +89,7 @@ const Dashboard = () => {
   };
 
   const handleDualFilesSelected = (videoFile: File, audioFile: File, aspectRatio: string) => {
-    uploadVideoWithSeparateAudio(videoFile, audioFile, currentFolderId, () => {}, aspectRatio).then(() => {
-      toast.success("Wideo z osobną ścieżką audio przesłane");
-    }).catch((err: any) => {
-      toast.error("Błąd przesyłania", { description: err?.message });
-    });
+    addDualFiles(videoFile, audioFile, currentFolderId, aspectRatio);
   };
 
   const handleCreateFolder = (name: string) => {
