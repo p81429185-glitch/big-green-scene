@@ -212,7 +212,7 @@ function generateCustomPlayerCode(
   return `<div style="position:relative;${sizeStyle}${containerAr}${portraitExtra}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
+  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} playsinline style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
