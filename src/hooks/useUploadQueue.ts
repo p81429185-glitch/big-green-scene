@@ -96,9 +96,13 @@ export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: Us
 
       processingRef.current = true;
 
+      const initialStatus = nextItem.isDual ? "uploading" as const : "cleaning" as const;
       setQueue((prev) =>
-        prev.map((i) => (i.id === nextItem.id ? { ...i, status: "cleaning" as const } : i))
+        prev.map((i) => (i.id === nextItem.id ? { ...i, status: initialStatus } : i))
       );
+
+      // Small delay to ensure React commits state and UploadQueue widget renders
+      await new Promise(r => setTimeout(r, 50));
 
       try {
         if (nextItem.isDual && nextItem.audioFile && uploadVideoWithSeparateAudio) {
