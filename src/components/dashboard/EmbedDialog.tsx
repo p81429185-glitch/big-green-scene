@@ -262,10 +262,14 @@ function generateCustomPlayerCode(
   (function(){
     var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}");
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
-    function hideLoading(){if(lo)lo.style.display="none";}
-    function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
+    function hideLoading(){if(lo){lo.style.display="none";lo=null;}}
+    function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
     v.addEventListener("loadedmetadata",hideLoading);
-    v.addEventListener("canplay",hideLoading);${isMuxReady ? "" : "\n    setTimeout(hideLoading,3000);"}
+    v.addEventListener("canplay",hideLoading);
+    v.addEventListener("loadeddata",hideLoading);
+    v.addEventListener("error",function(){hideLoading();});
+    if(lo)lo.addEventListener("click",function(){hideLoading();toggle();});
+    setTimeout(hideLoading,5000);
     bb.addEventListener("click",function(){hideLoading();toggle();});
     v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
