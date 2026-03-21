@@ -35,9 +35,9 @@ const Dashboard = () => {
   const { videos, folders, loading: videosLoading, uploadVideo, uploadVideoWithSeparateAudio, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
-    queue, minimized, setMinimized, addFiles, clearQueue,
+    queue, minimized, setMinimized, addFiles, addDualFiles, clearQueue,
     isActive, hasItems, doneCount, totalCount, overallProgress,
-  } = useUploadQueue({ uploadVideo });
+  } = useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio });
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) navigate("/auth", { replace: true });
