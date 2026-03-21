@@ -156,14 +156,18 @@ function generateCustomPlayerCode(
     (function(){
       var v=document.getElementById("${vid}");
       var hlsSrc="${hlsSrc}";
+      var directFallback="${skipDomainCheck ? directUrl : ''}";
       if(typeof Hls!=="undefined"&&Hls.isSupported()){
         var hls=new Hls({startLevel:-1,autoStartLoad:true});
         hls.loadSource(hlsSrc);
         hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED,function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
+        hls.on(Hls.Events.ERROR,function(ev,data){if(data.fatal&&directFallback){v.src=directFallback;}});
       }else if(v.canPlayType("application/vnd.apple.mpegurl")){
         v.src=hlsSrc;
         v.addEventListener("loadedmetadata",function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
+      }else if(directFallback){
+        v.src=directFallback;
       }
     })();` : "";
 
@@ -208,7 +212,7 @@ function generateCustomPlayerCode(
   return `<div style="position:relative;${sizeStyle}${containerAr}${portraitExtra}background:#000;border-radius:8px;overflow:hidden;font-family:sans-serif;" id="${uid}">
   ${logoHtml}
   ${loadingOverlayHtml}
-  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
+  <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} playsinline style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
     <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
@@ -258,10 +262,14 @@ function generateCustomPlayerCode(
   (function(){
     var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}");
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
-    function hideLoading(){if(lo)lo.style.display="none";}
-    function toggle(){if(v.paused){v.play();bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
+    function hideLoading(){if(lo){lo.style.display="none";lo=null;}}
+    function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
     v.addEventListener("loadedmetadata",hideLoading);
-    v.addEventListener("canplay",hideLoading);${isMuxReady ? "" : "\n    setTimeout(hideLoading,3000);"}
+    v.addEventListener("canplay",hideLoading);
+    v.addEventListener("loadeddata",hideLoading);
+    v.addEventListener("error",function(){hideLoading();});
+    if(lo)lo.addEventListener("click",function(){hideLoading();toggle();});
+    setTimeout(hideLoading,5000);
     bb.addEventListener("click",function(){hideLoading();toggle();});
     v.addEventListener("click",toggle);pb.addEventListener("click",toggle);bb.parentElement.style.cursor="pointer";
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
