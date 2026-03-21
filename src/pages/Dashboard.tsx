@@ -35,9 +35,9 @@ const Dashboard = () => {
   const { videos, folders, loading: videosLoading, uploadVideo, uploadVideoWithSeparateAudio, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
-    queue, minimized, setMinimized, addFiles, clearQueue,
+    queue, minimized, setMinimized, addFiles, addDualFiles, clearQueue,
     isActive, hasItems, doneCount, totalCount, overallProgress,
-  } = useUploadQueue({ uploadVideo });
+  } = useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio });
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) navigate("/auth", { replace: true });
@@ -89,11 +89,7 @@ const Dashboard = () => {
   };
 
   const handleDualFilesSelected = (videoFile: File, audioFile: File, aspectRatio: string) => {
-    uploadVideoWithSeparateAudio(videoFile, audioFile, currentFolderId, () => {}, aspectRatio).then(() => {
-      toast.success("Wideo z osobną ścieżką audio przesłane");
-    }).catch((err: any) => {
-      toast.error("Błąd przesyłania", { description: err?.message });
-    });
+    addDualFiles(videoFile, audioFile, currentFolderId, aspectRatio);
   };
 
   const handleCreateFolder = (name: string) => {

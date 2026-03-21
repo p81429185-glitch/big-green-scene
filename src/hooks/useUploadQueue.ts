@@ -10,13 +10,16 @@ export interface QueueItem {
   progress: number;
   status: "waiting" | "cleaning" | "uploading" | "processing" | "done" | "error";
   error?: string;
+  audioFile?: File;
+  isDual?: boolean;
 }
 
 interface UseUploadQueueOptions {
   uploadVideo: (file: File, folderId: string | null, onProgress: (pct: number) => void, aspectRatio?: string) => Promise<any>;
+  uploadVideoWithSeparateAudio?: (videoFile: File, audioFile: File, folderId: string | null, onProgress: (pct: number) => void, aspectRatio?: string) => Promise<any>;
 }
 
-export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
+export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: UseUploadQueueOptions) {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [minimized, setMinimized] = useState(false);
   const processingRef = useRef(false);
@@ -33,6 +36,22 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
       status: "waiting" as const,
     }));
     setQueue((prev) => [...prev, ...items]);
+  }, []);
+
+  const addDualFiles = useCallback((videoFile: File, audioFile: File, folderId: string | null, aspectRatio: string = "16:9") => {
+    const item: QueueItem = {
+      id: crypto.randomUUID(),
+      file: videoFile,
+      fileName: `${videoFile.name} + ${audioFile.name}`,
+      fileSize: videoFile.size + audioFile.size,
+      folderId,
+      aspectRatio,
+      progress: 0,
+      status: "waiting" as const,
+      audioFile,
+      isDual: true,
+    };
+    setQueue((prev) => [...prev, item]);
   }, []);
 
   const clearQueue = useCallback(() => {
@@ -53,6 +72,21 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
     }, 0) / totalCount
   );
 
+  const updateProgress = useCallback((itemId: string, pct: number) => {
+    setQueue((prev) =>
+      prev.map((i) => {
+        if (i.id !== itemId) return i;
+        if (pct >= 95 && i.status !== "processing") {
+          return { ...i, progress: pct, status: "processing" as const };
+        }
+        if (i.status === "cleaning") {
+          return { ...i, progress: pct, status: "uploading" as const };
+        }
+        return { ...i, progress: pct };
+      })
+    );
+  }, []);
+
   useEffect(() => {
     const processNext = async () => {
       if (processingRef.current) return;
@@ -67,20 +101,17 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
       );
 
       try {
-        await uploadVideo(nextItem.file, nextItem.folderId, (pct) => {
-          setQueue((prev) =>
-            prev.map((i) => {
-              if (i.id !== nextItem.id) return i;
-              if (pct >= 95 && i.status !== "processing") {
-                return { ...i, progress: pct, status: "processing" as const };
-              }
-              if (i.status === "cleaning") {
-                return { ...i, progress: pct, status: "uploading" as const };
-              }
-              return { ...i, progress: pct };
-            })
+        if (nextItem.isDual && nextItem.audioFile && uploadVideoWithSeparateAudio) {
+          await uploadVideoWithSeparateAudio(
+            nextItem.file,
+            nextItem.audioFile,
+            nextItem.folderId,
+            (pct) => updateProgress(nextItem.id, pct),
+            nextItem.aspectRatio
           );
-        }, nextItem.aspectRatio);
+        } else {
+          await uploadVideo(nextItem.file, nextItem.folderId, (pct) => updateProgress(nextItem.id, pct), nextItem.aspectRatio);
+        }
         setQueue((prev) =>
           prev.map((i) => (i.id === nextItem.id ? { ...i, status: "done" as const, progress: 100 } : i))
         );
@@ -98,13 +129,14 @@ export function useUploadQueue({ uploadVideo }: UseUploadQueueOptions) {
     };
 
     processNext();
-  }, [queue, uploadVideo]);
+  }, [queue, uploadVideo, uploadVideoWithSeparateAudio, updateProgress]);
 
   return {
     queue,
     minimized,
     setMinimized,
     addFiles,
+    addDualFiles,
     clearQueue,
     isActive,
     hasItems,
