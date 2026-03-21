@@ -1,79 +1,36 @@
 
 
-# Audit: Embed Black Screen + Audio Issues
+# Fix: Progress bar not showing for dual (MP4+MP3) uploads
 
-## Bugs Found
+## Root Cause Analysis
 
-### Bug 1: Loading overlay blocks ALL clicks (ROOT CAUSE)
-The loading overlay (`z-index:15`) sits on top of the big play button (`z-index:6`). The `click` handler for `hideLoading()` + `toggle()` is only on the big play button (`bb`), NOT on the overlay. If `loadedmetadata`/`canplay` events don't fire quickly, the overlay stays visible and the user cannot click through it to play the video. They see a black screen with a spinner that never goes away.
+After auditing the code, I found two issues:
 
-**Fix**: Add click handler on the loading overlay itself: `lo.addEventListener("click", function(){ hideLoading(); toggle(); });`
+### Issue 1: Status shows "cleaning" but dual uploads don't need cleaning
+In `useUploadQueue.ts` line 99-101, every queue item starts with status `"cleaning"` (metadata stripping phase). But `uploadVideoWithSeparateAudio` doesn't strip metadata — it skips straight to TUS upload. The `updateProgress` function (line 82-84) only transitions from `"cleaning"` → `"uploading"` when `onProgress` fires. If TUS takes a moment to initialize, the user sees a pulsing shield icon with "Usuwanie metadanych..." instead of an upload progress bar.
 
-### Bug 2: No timeout fallback for Mux HLS path
-Line 264: the 3-second `setTimeout(hideLoading, 3000)` is ONLY added for non-Mux videos. For Mux videos, the overlay hides only on `MANIFEST_PARSED`. If HLS loading fails silently (CDN blocked, hls.js fails to load), the overlay stays forever — permanent black screen.
+### Issue 2: If upload errors immediately, queue flashes and disappears
+If auth session is expired or bucket doesn't exist, the upload throws instantly. The queue item goes `waiting → cleaning → error` in a single render batch — the widget may not render visibly before the error state.
 
-**Fix**: Always add a timeout fallback (e.g. 5s for Mux, 3s for direct).
+## Plan
 
-### Bug 3: `v.play()` promise not handled
-`toggle()` calls `v.play()` without catching the rejected promise. If autoplay policy blocks playback, the big play button's opacity is set to 0 (hidden) but the video isn't actually playing. User sees nothing and has no way to retry.
+### File: `src/hooks/useUploadQueue.ts`
 
-**Fix**: Wrap `v.play()` in a `.catch()` that restores the big play button visibility.
+1. **For dual uploads, skip "cleaning" → go straight to "uploading"**:
+   In `processNext`, check `nextItem.isDual` — if true, set initial status to `"uploading"` instead of `"cleaning"`.
 
-### Bug 4: Missing `playsinline` attribute
-The `<video>` tag in embed HTML has no `playsinline` attribute. On iOS Safari, videos without this attribute open in fullscreen native player instead of playing inline, breaking the custom controls and audio sync entirely.
+2. **After upload completes or errors, keep `processingRef.current = false` and trigger processing of next item**:
+   Currently if there are multiple queued items, after one finishes, `processingRef.current` is set to false but the effect only re-runs when `queue` changes. The `setQueue` call for "done"/"error" status does change queue, so this should trigger. But add a safety check.
 
-**Fix**: Add `playsinline` attribute to the video element.
-
-### Bug 5: Dual-audio embed — video "play" event may not fire on stall
-For dual-audio embeds, the audio sync script waits for the video's "play" event to start audio. If the video element can't decode the file (stalls on black), the audio never starts — or if it somehow does start (e.g., via the `play()` call resolving), the audio plays while video stays black with no visual feedback to the user.
-
-**Fix**: Add error handling — if video fires "error" event, show a visible error message instead of black screen. Also add `loadeddata` event as additional trigger to hide overlay.
-
-### Bug 6: HLS CDN script may fail to load silently
-The hls.js CDN `<script>` tag (line 172) is added BEFORE the main `<script>` block, but there's no `onerror` handler. If CDN is blocked (corporate firewall, China, etc.), `Hls` is undefined, and the `hlsInitScript` checks `typeof Hls !== "undefined"` — so it silently falls through without setting any video source. Result: permanent black screen, no error shown.
-
-**Fix**: Add fallback in HLS init — if Hls is not available and native HLS not supported, fall back to direct MP4 URL.
-
-## Implementation Plan
-
-### File: `src/components/dashboard/EmbedDialog.tsx`
-
-All changes inside `generateCustomPlayerCode()`:
-
-1. **Video element**: Add `playsinline` attribute (line 211)
-
-2. **Loading overlay**: Make it clickable — add click handler on `lo` element in the main script (around line 265):
-   ```javascript
-   lo.addEventListener("click", function(){ hideLoading(); toggle(); });
+3. **Add a small delay before processNext starts** to ensure React has committed the queue state and the widget is visible:
    ```
-
-3. **Always add timeout fallback** (line 264): Remove the conditional, always add `setTimeout(hideLoading, 5000);` for all paths
-
-4. **Handle play() promise** in `toggle()` (line 262):
-   ```javascript
-   function toggle(){
-     if(v.paused){
-       var p=v.play();
-       if(p&&p.catch) p.catch(function(){bb.style.opacity="1";});
-       bb.style.opacity="0";
-     } else {v.pause();bb.style.opacity="1";}
-   }
+   await new Promise(r => setTimeout(r, 50));
    ```
+   This ensures the UploadQueue component has rendered before the upload starts.
 
-5. **Add video error handler** in main script:
-   ```javascript
-   v.addEventListener("error", function(){
-     hideLoading();
-     // Show error overlay or fallback message
-   });
-   ```
+### File: `src/components/dashboard/UploadQueue.tsx`
 
-6. **HLS fallback**: In `hlsInitScript`, add fallback to direct URL if HLS not available and native not supported. Pass `directUrl` as parameter to the HLS init block.
+4. **Show meaningful status for dual uploads in "uploading" state from the start** — no changes needed here since the fix is in the queue hook.
 
-7. **Add `loadeddata` event** as additional overlay-hiding trigger:
-   ```javascript
-   v.addEventListener("loadeddata", hideLoading);
-   ```
-
-No changes to any other files. No database changes. No changes to player controls, layout, or other functionality.
+These are minimal, targeted fixes. No changes to upload logic, player, embed, or any other functionality.
 
