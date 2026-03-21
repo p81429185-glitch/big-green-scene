@@ -1,49 +1,46 @@
 
-Cel: naprawić błąd uploadu dużych plików (`PATCH .../upload/resumable -> 400` z treścią `403 AccessDenied`) bez kupowania dodatkowej usługi typu Cloudflare Storage.
 
-Co już wiemy po analizie:
-- Limit rozmiaru pliku dla bucketa `videos` jest już poprawnie ustawiony na 5 GB.
-- Problem nie wynika już z limitu rozmiaru, tylko z autoryzacji podczas kolejnych chunków TUS (`PATCH`).
-- W regułach dostępu do plików istnieją polityki `SELECT/INSERT/DELETE` dla `videos`, ale brakuje polityki `UPDATE` dla `videos`.
-- TUS przy uploadzie resumable używa `PATCH`, który wymaga uprawnień odpowiadających `UPDATE` na obiekcie w storage.
-- W kodzie uploadu jest fallback do klucza publicznego, gdy brak sesji (`token = session?.access_token || anonKey`), co utrudnia diagnozę i może kończyć się 403 zamiast jasnego komunikatu „zaloguj się”.
+## Problem
 
-Zakres wdrożenia:
-1) Migracja backendu (najważniejsze)
-- Dodać brakującą politykę `UPDATE` dla plików w buckecie `videos` na `storage.objects`.
-- Zrobić to idempotentnie (najpierw `DROP POLICY IF EXISTS`, potem `CREATE POLICY`), żeby migracje były powtarzalne.
-- Polityka będzie ograniczona do konkretnego bucketa (`bucket_id = 'videos'`), aby nie otwierać innych zasobów.
+When uploading in "Wideo + Audio MP3" mode, the dual upload calls `uploadVideoWithSeparateAudio` directly with an empty progress callback `() => {}`, completely bypassing the `UploadQueue` UI component. The user sees no progress indicator — the dialog just closes and nothing visible happens until a toast appears at the end.
 
-2) Małe utwardzenie uploadu po stronie frontendu
-- W `useVideoStore.ts` zmienić logikę tokenu:
-  - jeśli użytkownik nie ma aktywnej sesji, przerwać upload od razu z czytelnym błędem („Sesja wygasła, zaloguj się ponownie”),
-  - nie używać fallbacku do anon key dla uploadów wymagających uprawnień zapisu.
-- Dzięki temu użytkownik dostanie precyzyjny komunikat zamiast niejasnego `AccessDenied`.
+## Solution
 
-3) (Opcjonalnie w tym samym kroku, jeśli chcesz od razu domknąć temat)
-- Dodać analogiczną politykę `UPDATE` dla bucketa `thumbnails`, żeby zapobiec cichym błędom przy `upsert: true` miniaturek.
+Route dual uploads through the same `UploadQueue` system used for standard uploads, so the user sees the same progress widget (bottom-right corner with file names, progress bars, status icons).
 
-Pliki, które zostaną zmienione po akceptacji:
-- `supabase/migrations/<nowa_migracja>.sql`
-  - dodanie polityki `UPDATE` dla `storage.objects` (bucket `videos`, opcjonalnie także `thumbnails`).
-- `src/hooks/useVideoStore.ts`
-  - usunięcie fallbacku anon dla uploadu TUS i dodanie jasnego błędu przy braku sesji.
+### Changes
 
-Plan testów po wdrożeniu:
-1. Zalogować się i wejść do Dashboard.
-2. Wrzucić duży plik (np. >200 MB) i potwierdzić:
-   - brak błędu `PATCH 400/403`,
-   - upload dochodzi do 100%,
-   - rekord pojawia się na liście filmów.
-3. Odświeżyć stronę i sprawdzić, czy wideo dalej jest dostępne.
-4. Sprawdzić zachowanie bez sesji (po wylogowaniu):
-   - upload ma być zablokowany od razu z jasnym komunikatem o konieczności logowania.
-5. (Jeśli dodamy thumbnails UPDATE) podmienić miniaturę tego samego filmu i potwierdzić brak błędów.
+**1. `src/hooks/useUploadQueue.ts`** — Add dual upload support:
+- Add a new `addDualFiles` method that creates a single `QueueItem` with extra fields (`audioFile`, `isDual`) to identify it as a dual upload
+- In `processNext` effect, detect dual items and call `uploadVideoWithSeparateAudio` instead of `uploadVideo`, passing the progress callback
+- Add `audioFile` and `isDual` optional fields to the `QueueItem` interface
 
-Ryzyko i rollback:
-- Ryzyko niskie: zmiana punktowa w polityce storage + komunikat sesji w uploaderze.
-- Jeśli cokolwiek pójdzie nie tak, rollback to usunięcie nowej polityki migracją naprawczą i przywrócenie poprzedniej logiki tokenu.
+**2. `src/hooks/useUploadQueue.ts`** — Accept `uploadVideoWithSeparateAudio` in options:
+- Add `uploadVideoWithSeparateAudio` to the `UseUploadQueueOptions` interface
+- Use it when processing dual queue items
 
-Dlaczego nie trzeba kupować Cloudflare:
-- Błąd jest autoryzacyjny (RLS/polityki dostępu), nie pojemnościowy ani transferowy.
-- Po poprawnej polityce `UPDATE` upload resumable powinien działać na obecnym backendzie.
+**3. `src/pages/Dashboard.tsx`** — Wire up dual uploads through queue:
+- Pass `uploadVideoWithSeparateAudio` to `useUploadQueue`
+- Change `handleDualFilesSelected` to call `addDualFiles` instead of calling `uploadVideoWithSeparateAudio` directly
+- Remove the direct `.then()` / `.catch()` toast handling (queue already shows status)
+
+### Technical details
+
+```
+QueueItem gets two new optional fields:
+  audioFile?: File       — the MP3/audio file
+  isDual?: boolean       — flag to route to the correct upload function
+
+useUploadQueue options adds:
+  uploadVideoWithSeparateAudio?: (videoFile, audioFile, folderId, onProgress, aspectRatio) => Promise<any>
+
+processNext logic change:
+  if (nextItem.isDual && nextItem.audioFile) {
+    await uploadVideoWithSeparateAudio(nextItem.file, nextItem.audioFile, ...)
+  } else {
+    await uploadVideo(nextItem.file, ...)
+  }
+```
+
+This ensures dual uploads show the same progress widget with file name, size, progress bar, and status transitions (waiting → cleaning → uploading → processing → done/error).
+
