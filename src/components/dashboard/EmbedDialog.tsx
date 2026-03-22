@@ -213,7 +213,7 @@ function generateCustomPlayerCode(
   <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} playsinline style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
-    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
+    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);${hasAudio ? `var a=document.getElementById('${audId}');if(a)a.currentTime=v.currentTime;` : ''}})()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/><text x="12" y="16" text-anchor="middle" fill="${brandIconColor}" stroke="none" font-size="8" font-family="sans-serif">15</text></svg>
     </button>
   </div>
