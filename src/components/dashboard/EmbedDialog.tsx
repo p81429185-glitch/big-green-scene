@@ -258,13 +258,11 @@ function generateCustomPlayerCode(
   </div>${hlsCdnTag}
   <script>
   (function(){
-    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}");
+    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}")${hasAudio ? `,a=document.getElementById("${audId}")` : ""};
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
     function hideLoading(){if(lo){lo.style.display="none";lo=null;}}
-    function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
-    v.addEventListener("loadedmetadata",hideLoading);
-    v.addEventListener("canplay",hideLoading);
-    v.addEventListener("loadeddata",hideLoading);
+    ${hasAudio ? `function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});if(a){a.currentTime=v.currentTime;var ap=a.play();if(ap&&ap.catch)ap.catch(function(){});}bb.style.opacity="0";}else{v.pause();if(a)a.pause();bb.style.opacity="1";}}` : `function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}`}
+    ${hasAudio ? `var vReady=false,aReady=false;function checkBothReady(){if(vReady&&aReady)hideLoading();}v.addEventListener("canplay",function(){vReady=true;checkBothReady();});a.addEventListener("canplay",function(){aReady=true;checkBothReady();});v.addEventListener("loadeddata",function(){vReady=true;checkBothReady();});` : `v.addEventListener("loadedmetadata",hideLoading);v.addEventListener("canplay",hideLoading);v.addEventListener("loadeddata",hideLoading);`}
     v.addEventListener("error",function(){hideLoading();});
     if(lo)lo.addEventListener("click",function(){hideLoading();toggle();});
     setTimeout(hideLoading,5000);
@@ -273,7 +271,7 @@ function generateCustomPlayerCode(
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
     v.addEventListener("pause",function(){ico.innerHTML='<polygon points="5,3 19,12 5,21" fill="${brandIconColor}"/>';});
     v.addEventListener("timeupdate",function(){if(v.duration){var p=(v.currentTime/v.duration)*100;fl.style.width=p+"%";tm.textContent=fmt(v.currentTime)+" / "+fmt(v.duration);}});
-    bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
+    bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();var t=(e.clientX-r.left)/r.width*v.duration;v.currentTime=t;${hasAudio ? "if(a)a.currentTime=t;" : ""}});
     w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
     w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
   })();${audioSyncScript}${hlsInitScript}${secureFetchScript}
