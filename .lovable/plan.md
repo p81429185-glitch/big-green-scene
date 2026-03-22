@@ -1,36 +1,85 @@
 
 
-# Fix: Progress bar not showing for dual (MP4+MP3) uploads
+# Fix: Dual-audio (MP4+MP3) embed broken — black screen + audio issues
 
-## Root Cause Analysis
+## Root Cause
 
-After auditing the code, I found two issues:
+**Bug 1 (CRITICAL): Audio autoplay blocked by browser**
+The `audioSyncScript` plays audio via `v.addEventListener("play", function(){ a.play(); })`. But this event fires asynchronously after `v.play()` resolves — by then the user gesture context is lost. Browsers block `a.play()` as an unauthorized autoplay attempt. Result: video plays muted, audio never starts (or starts inconsistently).
 
-### Issue 1: Status shows "cleaning" but dual uploads don't need cleaning
-In `useUploadQueue.ts` line 99-101, every queue item starts with status `"cleaning"` (metadata stripping phase). But `uploadVideoWithSeparateAudio` doesn't strip metadata — it skips straight to TUS upload. The `updateProgress` function (line 82-84) only transitions from `"cleaning"` → `"uploading"` when `onProgress` fires. If TUS takes a moment to initialize, the user sees a pulsing shield icon with "Usuwanie metadanych..." instead of an upload progress bar.
+**Bug 2: `a.play()` promise not caught**
+`a.play()` returns a promise that can reject (autoplay policy). The rejection is unhandled, causing console errors and inconsistent behavior.
 
-### Issue 2: If upload errors immediately, queue flashes and disappears
-If auth session is expired or bucket doesn't exist, the upload throws instantly. The queue item goes `waiting → cleaning → error` in a single render batch — the widget may not render visibly before the error state.
+**Bug 3: Loading overlay hides before audio is ready**
+The loading overlay only listens for video element events (`canplay`, `loadeddata`). For dual-audio embeds, it should also wait for the audio element to be ready. If video loads but audio CDN is slow, user clicks play and gets no sound.
 
-## Plan
+**Bug 4: Seek bar doesn't sync audio**
+The progress bar click handler (line 278) sets `v.currentTime` but doesn't sync `a.currentTime`. The audioSyncScript only listens for "seeked" event which may not fire reliably on all browsers from programmatic seeks.
 
-### File: `src/hooks/useUploadQueue.ts`
+## Fix Plan
 
-1. **For dual uploads, skip "cleaning" → go straight to "uploading"**:
-   In `processNext`, check `nextItem.isDual` — if true, set initial status to `"uploading"` instead of `"cleaning"`.
+### File: `src/components/dashboard/EmbedDialog.tsx`
 
-2. **After upload completes or errors, keep `processingRef.current = false` and trigger processing of next item**:
-   Currently if there are multiple queued items, after one finishes, `processingRef.current` is set to false but the effect only re-runs when `queue` changes. The `setQueue` call for "done"/"error" status does change queue, so this should trigger. But add a safety check.
+All changes inside `generateCustomPlayerCode()`:
 
-3. **Add a small delay before processNext starts** to ensure React has committed the queue state and the widget is visible:
-   ```
-   await new Promise(r => setTimeout(r, 50));
-   ```
-   This ensures the UploadQueue component has rendered before the upload starts.
+**1. Move audio play/pause into toggle() directly** (keeps user gesture context):
 
-### File: `src/components/dashboard/UploadQueue.tsx`
+For dual-audio embeds, modify the `toggle()` function to also reference `a` (audio element) and play/pause it directly alongside the video:
+```javascript
+function toggle(){
+  if(v.paused){
+    var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});
+    var ap=a.play();if(ap&&ap.catch)ap.catch(function(){});
+    a.currentTime=v.currentTime;
+    bb.style.opacity="0";
+  } else {
+    v.pause();a.pause();bb.style.opacity="1";
+  }
+}
+```
 
-4. **Show meaningful status for dual uploads in "uploading" state from the start** — no changes needed here since the fix is in the queue hook.
+This requires `a` to be defined in the main IIFE scope. Add `a=document.getElementById("${audId}")` to the variable declarations at line 263.
 
-These are minimal, targeted fixes. No changes to upload logic, player, embed, or any other functionality.
+**2. Simplify audioSyncScript** — remove play/pause listeners (now handled by toggle), keep only:
+- `v.muted=true`
+- seeked sync: `v.addEventListener("seeked", function(){ a.currentTime=v.currentTime; })`
+- drift correction interval (every 5s)
+
+**3. Wait for both video AND audio canplay before hiding overlay**:
+
+For dual-audio embeds, change the hide logic:
+```javascript
+var vReady=false, aReady=false;
+function checkBothReady(){ if(vReady&&aReady) hideLoading(); }
+v.addEventListener("canplay",function(){ vReady=true; checkBothReady(); });
+a.addEventListener("canplay",function(){ aReady=true; checkBothReady(); });
+```
+Keep the 5s timeout fallback as safety net.
+
+**4. Sync audio on progress bar seek**:
+
+Update the bar click handler to also set audio currentTime:
+```javascript
+bar.addEventListener("click",function(e){
+  var r=bar.getBoundingClientRect();
+  var t=(e.clientX-r.left)/r.width*v.duration;
+  v.currentTime=t;
+  if(a) a.currentTime=t;
+});
+```
+
+**5. Sync audio on skip button clicks**:
+
+The skip-back and skip-forward buttons (lines 218-226) only set `v.currentTime`. For dual-audio, they need to also sync `a.currentTime`. Since these are inline onclick handlers, they need to reference the audio element by ID.
+
+### Implementation approach
+
+Since all these changes are conditional on `hasAudio`, the cleanest approach is:
+- In the main IIFE, conditionally add `a` to the variable declarations when `hasAudio`
+- Generate a different `toggle()` function body when `hasAudio`
+- Generate different event listeners for loading when `hasAudio`
+- Update seek/skip handlers to include audio sync when `hasAudio`
+- Simplify `audioSyncScript` to only contain drift correction and seeked sync
+
+No changes to any other files. No database changes.
 
