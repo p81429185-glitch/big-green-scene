@@ -181,13 +181,11 @@ function generateCustomPlayerCode(
   const videoMutedAttr = hasAudio ? " muted" : "";
   const audioHtml = hasAudio ? `\n  <audio id="${audId}" src="${audioTrackUrl}" preload="auto" style="display:none;"></audio>` : "";
 
-  // Audio sync script for embed
+  // Audio sync script for embed — only drift correction + seeked sync (play/pause handled in toggle)
   const audioSyncScript = hasAudio ? `
     (function(){
       var v=document.getElementById("${vid}"),a=document.getElementById("${audId}");
       v.muted=true;
-      v.addEventListener("play",function(){a.currentTime=v.currentTime;a.play();});
-      v.addEventListener("pause",function(){a.pause();});
       v.addEventListener("seeked",function(){a.currentTime=v.currentTime;});
       setInterval(function(){if(!v.paused&&Math.abs(v.currentTime-a.currentTime)>0.3){a.currentTime=v.currentTime;}},5000);
     })();` : "";
@@ -215,12 +213,12 @@ function generateCustomPlayerCode(
   <video${videoSrcAttr} preload="${videoPreload}"${posterAttr}${videoMutedAttr} playsinline style="width:100%;display:block;cursor:pointer;${videoAr}" id="${vid}"${sizeMode === "fixed" ? ` height="${embedHeight}"` : ""}></video>${audioHtml}
   <!-- Skip buttons overlay -->
   <div style="position:absolute;top:50%;left:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-back-${uid}">
-    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);})()">
+    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.max(0,v.currentTime-15);${hasAudio ? `var a=document.getElementById('${audId}');if(a)a.currentTime=v.currentTime;` : ''}})()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/><text x="12" y="16" text-anchor="middle" fill="${brandIconColor}" stroke="none" font-size="8" font-family="sans-serif">15</text></svg>
     </button>
   </div>
   <div style="position:absolute;top:50%;right:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-fwd-${uid}">
-    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.min(v.duration||0,v.currentTime+15);})()">
+    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.min(v.duration||0,v.currentTime+15);${hasAudio ? `var a=document.getElementById('${audId}');if(a)a.currentTime=v.currentTime;` : ''}})()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/><text x="12" y="16" text-anchor="middle" fill="${brandIconColor}" stroke="none" font-size="8" font-family="sans-serif">15</text></svg>
     </button>
   </div>
@@ -260,13 +258,11 @@ function generateCustomPlayerCode(
   </div>${hlsCdnTag}
   <script>
   (function(){
-    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}");
+    var v=document.getElementById("${vid}"),c=document.getElementById("ctrl${uid}"),bb=document.getElementById("big${playBtn}"),pb=document.getElementById("${playBtn}"),ico=document.getElementById("ico${playBtn}"),bar=document.getElementById("${prog}"),fl=document.getElementById("${fill}"),tm=document.getElementById("${timeEl}"),w=document.getElementById("${uid}"),sb=document.getElementById("skip-back-${uid}"),sf=document.getElementById("skip-fwd-${uid}"),lo=document.getElementById("${loadingOverlay}")${hasAudio ? `,a=document.getElementById("${audId}")` : ""};
     function fmt(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+(sec<10?"0":"")+sec;}
     function hideLoading(){if(lo){lo.style.display="none";lo=null;}}
-    function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}
-    v.addEventListener("loadedmetadata",hideLoading);
-    v.addEventListener("canplay",hideLoading);
-    v.addEventListener("loadeddata",hideLoading);
+    ${hasAudio ? `function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});if(a){a.currentTime=v.currentTime;var ap=a.play();if(ap&&ap.catch)ap.catch(function(){});}bb.style.opacity="0";}else{v.pause();if(a)a.pause();bb.style.opacity="1";}}` : `function toggle(){if(v.paused){var p=v.play();if(p&&p.catch)p.catch(function(){bb.style.opacity="1";});bb.style.opacity="0";}else{v.pause();bb.style.opacity="1";}}`}
+    ${hasAudio ? `var vReady=false,aReady=false;function checkBothReady(){if(vReady&&aReady)hideLoading();}v.addEventListener("canplay",function(){vReady=true;checkBothReady();});a.addEventListener("canplay",function(){aReady=true;checkBothReady();});v.addEventListener("loadeddata",function(){vReady=true;checkBothReady();});` : `v.addEventListener("loadedmetadata",hideLoading);v.addEventListener("canplay",hideLoading);v.addEventListener("loadeddata",hideLoading);`}
     v.addEventListener("error",function(){hideLoading();});
     if(lo)lo.addEventListener("click",function(){hideLoading();toggle();});
     setTimeout(hideLoading,5000);
@@ -275,7 +271,7 @@ function generateCustomPlayerCode(
     v.addEventListener("play",function(){ico.innerHTML='<rect x="6" y="4" width="4" height="16" fill="${brandIconColor}"/><rect x="14" y="4" width="4" height="16" fill="${brandIconColor}"/>';});
     v.addEventListener("pause",function(){ico.innerHTML='<polygon points="5,3 19,12 5,21" fill="${brandIconColor}"/>';});
     v.addEventListener("timeupdate",function(){if(v.duration){var p=(v.currentTime/v.duration)*100;fl.style.width=p+"%";tm.textContent=fmt(v.currentTime)+" / "+fmt(v.duration);}});
-    bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();v.currentTime=(e.clientX-r.left)/r.width*v.duration;});
+    bar.addEventListener("click",function(e){var r=bar.getBoundingClientRect();var t=(e.clientX-r.left)/r.width*v.duration;v.currentTime=t;${hasAudio ? "if(a)a.currentTime=t;" : ""}});
     w.addEventListener("mouseenter",function(){c.style.opacity="1";if(sb)sb.style.opacity="1";if(sf)sf.style.opacity="1";});
     w.addEventListener("mouseleave",function(){if(!v.paused){c.style.opacity="0";}if(sb)sb.style.opacity="0";if(sf)sf.style.opacity="0";});
   })();${audioSyncScript}${hlsInitScript}${secureFetchScript}
