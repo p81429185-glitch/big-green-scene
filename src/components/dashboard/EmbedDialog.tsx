@@ -218,7 +218,7 @@ function generateCustomPlayerCode(
     </button>
   </div>
   <div style="position:absolute;top:50%;right:15%;transform:translateY(-50%);pointer-events:auto;opacity:0;transition:opacity .3s;z-index:5;" id="skip-fwd-${uid}">
-    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.min(v.duration||0,v.currentTime+15);})()">
+    <button style="width:44px;height:44px;border-radius:50%;background:${brandSkipBgColor};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;" onclick="(function(){var v=document.getElementById('${vid}');v.currentTime=Math.min(v.duration||0,v.currentTime+15);${hasAudio ? `var a=document.getElementById('${audId}');if(a)a.currentTime=v.currentTime;` : ''}})()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/><text x="12" y="16" text-anchor="middle" fill="${brandIconColor}" stroke="none" font-size="8" font-family="sans-serif">15</text></svg>
     </button>
   </div>
