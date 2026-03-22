@@ -181,13 +181,11 @@ function generateCustomPlayerCode(
   const videoMutedAttr = hasAudio ? " muted" : "";
   const audioHtml = hasAudio ? `\n  <audio id="${audId}" src="${audioTrackUrl}" preload="auto" style="display:none;"></audio>` : "";
 
-  // Audio sync script for embed
+  // Audio sync script for embed — only drift correction + seeked sync (play/pause handled in toggle)
   const audioSyncScript = hasAudio ? `
     (function(){
       var v=document.getElementById("${vid}"),a=document.getElementById("${audId}");
       v.muted=true;
-      v.addEventListener("play",function(){a.currentTime=v.currentTime;a.play();});
-      v.addEventListener("pause",function(){a.pause();});
       v.addEventListener("seeked",function(){a.currentTime=v.currentTime;});
       setInterval(function(){if(!v.paused&&Math.abs(v.currentTime-a.currentTime)>0.3){a.currentTime=v.currentTime;}},5000);
     })();` : "";
