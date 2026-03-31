@@ -372,9 +372,6 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           // Safari native HLS
           v.src = src;
         }
-      } else {
-        // Direct MP4 playback
-        v.src = src;
       }
 
       return () => {
