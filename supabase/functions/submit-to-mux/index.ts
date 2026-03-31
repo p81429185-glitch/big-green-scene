@@ -52,6 +52,8 @@ async function submitSingleVideoToMux(
       mux_asset_id: asset.id,
       mux_playback_id: asset.playback_ids?.[0]?.id || null,
       mux_status: "processing",
+      processing_status: "processing",
+      is_processed: false,
     })
     .eq("id", videoId);
 

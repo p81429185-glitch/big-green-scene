@@ -8,8 +8,33 @@ const corsHeaders = {
 
 async function verifyMuxSignature(rawBody: string, signatureHeader: string, secret: string): Promise<boolean> {
   try {
-    // Mux signature format: "v1=<hash>,v1=<hash>..." — we check any v1 hash
-    const signatures = signatureHeader.split(",");
+    // Mux signature format: "t=<timestamp>,v1=<hash>".
+    // Signed payload: "<timestamp>.<raw_request_body>"
+    const parts = signatureHeader.split(",");
+    let timestamp: string | null = null;
+    const v1Signatures: string[] = [];
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith("t=")) {
+        timestamp = trimmed.slice(2);
+      } else if (trimmed.startsWith("v1=")) {
+        v1Signatures.push(trimmed.slice(3).toLowerCase());
+      }
+    }
+
+    if (!timestamp || v1Signatures.length === 0) return false;
+
+    const tsNum = Number(timestamp);
+    if (!Number.isFinite(tsNum)) return false;
+
+    // Default Mux tolerance is 5 minutes.
+    const toleranceMs = 5 * 60 * 1000;
+    const nowMs = Date.now();
+    if (Math.abs(nowMs - tsNum * 1000) > toleranceMs) return false;
+
+    const payload = `${timestamp}.${rawBody}`;
+
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw",
@@ -18,20 +43,13 @@ async function verifyMuxSignature(rawBody: string, signatureHeader: string, secr
       false,
       ["sign"]
     );
-    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
     const computed = Array.from(new Uint8Array(sig))
       .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+      .join("")
+      .toLowerCase();
 
-    for (const part of signatures) {
-      const trimmed = part.trim();
-      // Mux sends "t=<timestamp>,v1=<hex>"
-      if (trimmed.startsWith("v1=")) {
-        const expected = trimmed.slice(3);
-        if (expected === computed) return true;
-      }
-    }
-    return false;
+    return v1Signatures.includes(computed);
   } catch (err) {
     console.error("Signature verification error:", err);
     return false;
@@ -102,7 +120,12 @@ Deno.serve(async (req) => {
     } else if (eventType === "video.asset.errored") {
       const { error } = await supabaseAdmin
         .from("videos")
-        .update({ mux_status: "error" })
+        .update({
+          mux_status: "error",
+          mux_playback_id: null,
+          is_processed: false,
+          processing_status: "failed",
+        })
         .eq("mux_asset_id", assetId);
 
       if (error) console.error("DB update error on errored:", error);
