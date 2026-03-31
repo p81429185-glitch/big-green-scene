@@ -10,6 +10,9 @@ export function useFFmpegConvert() {
 
   const convertToMp3 = useCallback(async (videoUrl: string, outputName: string) => {
     try {
+      // #region agent log
+      fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H1_H2", location: "useFFmpegConvert.ts:convertToMp3:start", message: "FFmpeg convert start env check", data: { crossOriginIsolated: window.crossOriginIsolated, sharedArrayBuffer: typeof SharedArrayBuffer !== "undefined", videoUrlPresent: !!videoUrl, outputNamePresent: !!outputName }, timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       setIsConverting(true);
       setProgress(0);
 
@@ -20,10 +23,16 @@ export function useFFmpegConvert() {
       const ffmpeg = ffmpegRef.current;
 
       if (!loadedRef.current) {
+        // #region agent log
+        fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H1", location: "useFFmpegConvert.ts:ffmpeg.load:before", message: "Before ffmpeg.load", data: { loaded: loadedRef.current }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
         await ffmpeg.load({
           coreURL: "https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.js",
         });
         loadedRef.current = true;
+        // #region agent log
+        fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H1", location: "useFFmpegConvert.ts:ffmpeg.load:after", message: "After ffmpeg.load success", data: { loaded: true }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
       }
 
       ffmpeg.on("progress", ({ progress: p }) => {
@@ -54,6 +63,9 @@ export function useFFmpegConvert() {
       setIsConverting(false);
       setProgress(0);
     } catch (err) {
+      // #region agent log
+      fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H1_H3", location: "useFFmpegConvert.ts:convertToMp3:catch", message: "FFmpeg convert failed", data: { errorMessage: err instanceof Error ? err.message : String(err), crossOriginIsolated: window.crossOriginIsolated, sharedArrayBuffer: typeof SharedArrayBuffer !== "undefined" }, timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       console.error("FFmpeg conversion error:", err);
       toast({
         title: "Błąd konwersji",

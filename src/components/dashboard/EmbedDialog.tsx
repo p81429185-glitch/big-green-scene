@@ -91,7 +91,9 @@ function generateCustomPlayerCode(
     : "";
 
   const posterAttr = thumbnailUrl ? ` poster="${thumbnailUrl}"` : "";
-  const directUrl = `${supabaseUrl}/storage/v1/object/public/videos/${storagePath}`;
+  const directUrl = storagePath
+    ? `${supabaseUrl}/storage/v1/object/public/videos/${storagePath}`
+    : "";
   const isMuxReady = !!(muxPlaybackId && muxStatus === "ready");
   const hlsSrc = isMuxReady ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : "";
   
@@ -143,11 +145,11 @@ function generateCustomPlayerCode(
         if(lo) lo.style.display = "none";
         errEl = document.createElement("div");
         errEl.style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20;background:rgba(0,0,0,0.85);";
-        errEl.innerHTML = '<p style="color:#999;text-align:center;font-family:sans-serif;margin-bottom:12px;">' + msg + '</p><button onclick="fetchAndCache()" style="background:${brandColor};color:${brandIconColor};border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-family:sans-serif;font-size:13px;">Spróbuj ponownie</button>';
+        errEl.innerHTML = '<p style="color:#999;text-align:center;font-family:sans-serif;margin-bottom:12px;">' + msg + '</p><button onclick="window[\'fetchAndCache_${uid}\']()" style="background:${brandColor};color:${brandIconColor};border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-family:sans-serif;font-size:13px;">Spróbuj ponownie</button>';
         w.appendChild(errEl);
       }
 
-      window.fetchAndCache = fetchAndCache;
+      window['fetchAndCache_${uid}'] = fetchAndCache;
       fetchAndCache();
     })();`;
 
@@ -159,6 +161,7 @@ function generateCustomPlayerCode(
       var directFallback="${skipDomainCheck ? directUrl : ''}";
       if(typeof Hls!=="undefined"&&Hls.isSupported()){
         var hls=new Hls({startLevel:-1,autoStartLoad:true});
+        window['hls_${uid}']=hls;
         hls.loadSource(hlsSrc);
         hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED,function(){var lo=document.getElementById("${loadingOverlay}");if(lo)lo.style.display="none";});
@@ -246,9 +249,9 @@ function generateCustomPlayerCode(
     <div style="position:relative;">
       <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;font-size:11px;font-family:sans-serif;" id="qbtn${uid}" onclick="(function(){var m=document.getElementById('${qualMenu}');m.style.display=m.style.display==='none'?'block':'none';})()">HD</button>
       <div id="${qualMenu}" style="display:none;position:absolute;bottom:30px;right:0;background:rgba(0,0,0,0.9);border-radius:4px;padding:4px 0;min-width:80px;z-index:20;">
-        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.style.maxHeight='none';document.getElementById('qbtn${uid}').textContent='HD';document.getElementById('${qualMenu}').style.display='none';})()">Oryginalna</div>
-        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.style.maxHeight='720px';document.getElementById('qbtn${uid}').textContent='720p';document.getElementById('${qualMenu}').style.display='none';})()">720p</div>
-        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.style.maxHeight='480px';document.getElementById('qbtn${uid}').textContent='480p';document.getElementById('${qualMenu}').style.display='none';})()">480p</div>
+        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var h=window['hls_${uid}'];if(h)h.currentLevel=-1;document.getElementById('qbtn${uid}').textContent='HD';document.getElementById('${qualMenu}').style.display='none';})()">Auto</div>
+        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var h=window['hls_${uid}'];if(h){var lvl=h.levels.reduce(function(b,l,i){return(l.height<=720&&l.height>(b===-1?0:h.levels[b].height))?i:b},-1);if(lvl>=0)h.currentLevel=lvl;}document.getElementById('qbtn${uid}').textContent='720p';document.getElementById('${qualMenu}').style.display='none';})()">720p</div>
+        <div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var h=window['hls_${uid}'];if(h){var lvl=h.levels.reduce(function(b,l,i){return(l.height<=480&&l.height>(b===-1?0:h.levels[b].height))?i:b},-1);if(lvl>=0)h.currentLevel=lvl;}document.getElementById('qbtn${uid}').textContent='480p';document.getElementById('${qualMenu}').style.display='none';})()">480p</div>
       </div>
     </div>
     <!-- Fullscreen -->

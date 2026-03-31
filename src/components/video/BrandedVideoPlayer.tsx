@@ -67,6 +67,8 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const audioRef = useRef<HTMLAudioElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const useHlsRef = useRef(useHls);
+    useEffect(() => { useHlsRef.current = useHls; }, [useHls]);
     const { settings } = useBrandSettings();
 
     const [playing, setPlaying] = useState(false);
@@ -79,6 +81,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const [videoWidth, setVideoWidth] = useState(0);
     const [videoHeight, setVideoHeight] = useState(0);
     const [selectedQuality, setSelectedQuality] = useState<string>("Auto");
+    const [hlsLevels, setHlsLevels] = useState<Array<{ height: number; width: number }>>([]);
     const [showQualityMenu, setShowQualityMenu] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [volume, setVolume] = useState(1);
@@ -91,19 +94,25 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
     const segments = subtitlesSrt ? parseSrt(subtitlesSrt) : [];
 
     const qualityOptions = (() => {
-      const opts: { label: string; width: number; height: number }[] = [];
-      if (!videoWidth) return [{ label: "Auto", width: 0, height: 0 }];
-      if (videoWidth >= 3840) opts.push({ label: "4K", width: 3840, height: 2160 });
-      if (videoWidth >= 1920) opts.push({ label: "1080p", width: 1920, height: 1080 });
-      if (videoWidth >= 1280) opts.push({ label: "720p", width: 1280, height: 720 });
-      if (videoWidth >= 854) opts.push({ label: "480p", width: 854, height: 480 });
-      if (opts.length === 0) opts.push({ label: `${videoHeight}p`, width: videoWidth, height: videoHeight });
+      if (useHls && hlsLevels.length > 0) {
+        const sorted = hlsLevels
+          .map((l, i) => ({ label: `${l.height}p`, levelIndex: i, width: l.width, height: l.height }))
+          .sort((a, b) => b.height - a.height);
+        return [{ label: "Auto", levelIndex: -1, width: 0, height: 0 }, ...sorted];
+      }
+      const opts: { label: string; levelIndex: number; width: number; height: number }[] = [];
+      if (!videoWidth) return [{ label: "Auto", levelIndex: -1, width: 0, height: 0 }];
+      if (videoWidth >= 3840) opts.push({ label: "4K",    levelIndex: -1, width: 3840, height: 2160 });
+      if (videoWidth >= 1920) opts.push({ label: "1080p", levelIndex: -1, width: 1920, height: 1080 });
+      if (videoWidth >= 1280) opts.push({ label: "720p",  levelIndex: -1, width: 1280, height: 720  });
+      if (videoWidth >= 854)  opts.push({ label: "480p",  levelIndex: -1, width: 854,  height: 480  });
+      if (opts.length === 0)  opts.push({ label: `${videoHeight}p`, levelIndex: -1, width: videoWidth, height: videoHeight });
       return opts;
     })();
 
     const selectedOption = qualityOptions.find((o) => o.label === selectedQuality);
     const videoStyle: React.CSSProperties =
-      selectedOption && selectedOption.width > 0
+      !useHls && selectedOption && selectedOption.width > 0
         ? { maxWidth: selectedOption.width, maxHeight: selectedOption.height, margin: "0 auto" }
         : {};
 
@@ -118,11 +127,30 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       reload: () => {
         const v = videoRef.current;
         if (!v) return;
-        v.src = src;
-        v.load();
-        v.play();
+        if (useHls && src) {
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+          }
+          if (Hls.isSupported()) {
+            const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+            hlsRef.current = hls;
+            hls.loadSource(src);
+            hls.attachMedia(v);
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+              if (data.fatal) onError?.();
+            });
+          } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
+            v.src = src;
+          }
+          v.play().catch(() => {});
+        } else {
+          v.src = src;
+          v.load();
+          v.play();
+        }
       },
-    }));
+    }), [src, useHls, onError]);
 
     // Stall detection: 5s after play with no timeupdate = stalled
     const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -298,10 +326,12 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         setDuration(v.duration);
         setVideoWidth(v.videoWidth);
         setVideoHeight(v.videoHeight);
-        if (v.videoWidth >= 3840) setSelectedQuality("4K");
-        else if (v.videoWidth >= 1920) setSelectedQuality("1080p");
-        else if (v.videoWidth >= 1280) setSelectedQuality("720p");
-        else setSelectedQuality("480p");
+        if (!useHlsRef.current) {
+          if (v.videoWidth >= 3840)      setSelectedQuality("4K");
+          else if (v.videoWidth >= 1920) setSelectedQuality("1080p");
+          else if (v.videoWidth >= 1280) setSelectedQuality("720p");
+          else                           setSelectedQuality("480p");
+        }
       };
       const onCanPlayHandler = () => {
         onCanPlay?.();
@@ -362,6 +392,10 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           hlsRef.current = hls;
           hls.loadSource(src);
           hls.attachMedia(v);
+          hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+            setHlsLevels(data.levels.map((l) => ({ height: l.height, width: l.width })));
+            setSelectedQuality("Auto");
+          });
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (data.fatal) {
               console.error("HLS fatal error:", data);
@@ -379,6 +413,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
           hlsRef.current.destroy();
           hlsRef.current = null;
         }
+        setHlsLevels([]);
       };
     }, [src, useHls, onError]);
 
@@ -473,6 +508,9 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       if (!hasAudioTrack && videoRef.current) {
         videoRef.current.volume = muted ? 0 : volume;
       }
+      // #region agent log
+      fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H4_H5", location: "BrandedVideoPlayer.tsx:volumeEffect", message: "Volume effect applied", data: { hasAudioTrack, muted, volumeState: volume, audioElementVolume: audioRef.current?.volume ?? null, videoElementVolume: videoRef.current?.volume ?? null, videoElementMuted: videoRef.current?.muted ?? null }, timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
     }, [volume, muted, hasAudioTrack]);
 
     const displayProgress = isSeeking
@@ -500,6 +538,7 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
         <video
           ref={videoRef}
           src={!useHls ? src : undefined}
+          poster={poster}
           preload="auto"
           muted={hasAudioTrack ? true : muted}
           onTimeUpdate={handleTimeUpdate}
@@ -655,7 +694,11 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
               const val = parseFloat(e.target.value);
               setVolume(val);
               setMuted(val === 0);
+              // #region agent log
+              fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H4", location: "BrandedVideoPlayer.tsx:volumeSlider:onChange", message: "Volume slider changed", data: { hasAudioTrack, sliderValue: val, willMute: val === 0, hasAudioElement: !!audioRef.current, hasVideoElement: !!videoRef.current, audioElementVolumeBefore: audioRef.current?.volume ?? null, videoElementVolumeBefore: videoRef.current?.volume ?? null, videoElementMuted: videoRef.current?.muted ?? null }, timestamp: Date.now() }) }).catch(() => {});
+              // #endregion
               if (videoRef.current) videoRef.current.volume = val;
+              if (hasAudioTrack && audioRef.current) audioRef.current.volume = val;
             }}
             className="w-16 h-1 cursor-pointer"
             style={{ accentColor: settings.progress_color }}
@@ -682,6 +725,9 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
                     onClick={() => {
                       setSelectedQuality(opt.label);
                       setShowQualityMenu(false);
+                      if (useHls && hlsRef.current) {
+                        hlsRef.current.currentLevel = opt.levelIndex;
+                      }
                     }}
                   >
                     {opt.label} {opt.label === selectedQuality ? "✓" : ""}

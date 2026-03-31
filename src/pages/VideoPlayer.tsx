@@ -5,7 +5,7 @@ import BrandedVideoPlayer, { BrandedVideoPlayerHandle } from "@/components/video
 import {
   ArrowLeft, HardDrive, Calendar, Play, MoreHorizontal, Code, Share2,
   Scissors, Settings, BarChart3, Pencil, FileVideo, MessageSquare,
-  FileText, ExternalLink, BookOpen, Loader2, RefreshCw, Music, Monitor,
+  FileText, ExternalLink, BookOpen, AlertCircle, Loader2, RefreshCw, Music, Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -80,9 +80,10 @@ interface VideoLoadingWrapperProps {
   muxAssetId: string | null;
   audioTrackUrl: string | null;
   aspectRatio: string;
+  storagePath: string;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio, storagePath }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -100,16 +101,22 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
   const isMuxReady = muxStatus === "ready" && !!muxPlaybackId;
   const isMuxProcessing = muxStatus === "processing" || (muxStatus === "preparing" && !!muxPlaybackId);
 
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P1_P2", location: "VideoPlayer.tsx:VideoLoadingWrapper:statusProps", message: "Wrapper status props snapshot", data: { videoId, muxStatus, hasMuxPlaybackId: !!muxPlaybackId, hasMuxAssetId: !!muxAssetId, isMuxReady, isMuxProcessing, isProcessed, hasSrc: !!src }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
+  }, [videoId, muxStatus, muxPlaybackId, muxAssetId, isMuxReady, isMuxProcessing, isProcessed, src]);
+
   // Auto-submit to Mux if not yet submitted
   useEffect(() => {
     if (autoSubmittedRef.current) return;
-    if (!muxAssetId || muxStatus === "pending") {
+    if (!muxAssetId && muxStatus === "pending") {
       autoSubmittedRef.current = true;
       supabase.functions.invoke("submit-to-mux", {
-        body: { video_id: videoId },
+        body: { video_id: videoId, storage_path: storagePath },
       }).catch(() => {});
     }
-  }, [videoId, muxAssetId, muxStatus]);
+  }, [videoId, muxAssetId, muxStatus, storagePath]);
 
   const clearBufferTimeout = useCallback(() => {
     if (bufferTimeoutRef.current) {
@@ -136,6 +143,9 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     clearStallTimer();
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
+    // #region agent log
+    fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P1", location: "VideoPlayer.tsx:handleCanPlay", message: "Player canplay fired", data: { videoId, isLoadingBefore: true, muxStatus, isMuxReady }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
   }, [clearBufferTimeout, clearStallTimer]);
 
   const handleError = useCallback(() => {
@@ -143,7 +153,10 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     setIsLoading(false);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (progressRef.current) clearInterval(progressRef.current);
-  }, []);
+    // #region agent log
+    fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P1_P3", location: "VideoPlayer.tsx:handleError", message: "Player error triggered processing overlay", data: { videoId, muxStatus, hasMuxPlaybackId: !!muxPlaybackId, hasMuxAssetId: !!muxAssetId, isMuxReady, isMuxProcessing, srcKind: src.includes(".m3u8") ? "hls" : "direct" }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
+  }, [videoId, muxStatus, muxPlaybackId, muxAssetId, isMuxReady, isMuxProcessing, src]);
 
   const handleRetry = useCallback(() => {
     setIsLoading(true);
@@ -293,11 +306,11 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         {/* Video error state */}
         {videoError && !isLoading && (
           <div className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <AlertCircle className="h-12 w-12 text-destructive" />
             <div className="text-center">
-              <p className="text-lg font-medium">Film jest przetwarzany...</p>
+              <p className="text-lg font-medium">Błąd odtwarzania</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Strona odświeży się automatycznie gdy film będzie gotowy.
+                Nie udało się załadować wideo. Sprawdź połączenie i spróbuj ponownie.
               </p>
             </div>
             <Button onClick={handleRetry} variant="outline" className="mt-2">
@@ -365,11 +378,17 @@ const VideoPlayer = () => {
         .single();
 
       if (error || !data) {
+        // #region agent log
+        fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P4", location: "VideoPlayer.tsx:load:error", message: "Initial video load failed", data: { videoId: id, hasData: !!data, errorMessage: error?.message ?? null }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
         setLoading(false);
         return;
       }
 
       const v = data as Video;
+      // #region agent log
+      fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P2_P5", location: "VideoPlayer.tsx:load:videoData", message: "Loaded video row", data: { videoId: v.id, processingStatus: v.processing_status, isProcessed: v.is_processed, muxStatus: v.mux_status, hasMuxPlaybackId: !!v.mux_playback_id, hasMuxAssetId: !!v.mux_asset_id }, timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       setVideo(v);
       setTranscription(v.transcription ?? null);
       setSubtitlesSrt((data as any).subtitles_srt ?? null);
@@ -405,6 +424,9 @@ const VideoPlayer = () => {
         },
         (payload) => {
           const updated = payload.new as Video;
+          // #region agent log
+          fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P2", location: "VideoPlayer.tsx:realtime:update", message: "Realtime video status update", data: { videoId: updated.id, processingStatus: updated.processing_status, isProcessed: updated.is_processed, muxStatus: updated.mux_status, hasMuxPlaybackId: !!updated.mux_playback_id, hasMuxAssetId: !!updated.mux_asset_id }, timestamp: Date.now() }) }).catch(() => {});
+          // #endregion
           setVideo((prev) => prev ? { ...prev, ...updated } : prev);
         }
       )
@@ -535,6 +557,7 @@ const VideoPlayer = () => {
               muxStatus={video.mux_status || "pending"}
               muxPlaybackId={video.mux_playback_id || null}
               muxAssetId={video.mux_asset_id || null}
+              storagePath={video.storage_path}
               audioTrackUrl={
                 (video as any).audio_track_path
                   ? supabase.storage.from("audio-tracks").getPublicUrl((video as any).audio_track_path).data.publicUrl

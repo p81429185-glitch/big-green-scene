@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { stripVideoMetadata } from "@/lib/stripVideoMetadata";
-import { isFaststart, relocateMoovToStart } from "@/lib/moovAtomUtils";
+import { quickCheck, relocateMoovToStart } from "@/lib/moovAtomUtils";
 import type { FaststartResponse } from "@/workers/faststartWorker";
 import { toast } from "sonner";
 import * as tus from "tus-js-client";
@@ -248,7 +248,7 @@ export function useVideoStore() {
     }
   };
 
-  const uploadFileTus = async (file: File, storagePath: string, onProgress?: (pct: number) => void): Promise<void> => {
+  const uploadFileTus = async (file: File, storagePath: string, onProgress?: (pct: number) => void, bucket = "videos"): Promise<void> => {
     const url = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -270,7 +270,7 @@ export function useVideoStore() {
         uploadDataDuringCreation: true,
         removeFingerprintOnSuccess: true,
         metadata: {
-          bucketName: "videos",
+          bucketName: bucket,
           objectName: storagePath,
           contentType: file.type || "application/octet-stream",
           cacheControl: "3600",
@@ -345,7 +345,7 @@ export function useVideoStore() {
           const headerSlice = cleanFile.slice(0, 65536);
           const headerBuffer = await headerSlice.arrayBuffer();
 
-          const isFast = isFaststart(headerBuffer);
+          const isFast = quickCheck(headerBuffer);
           console.log("Is faststart:", isFast);
 
           if (!isFast) {
@@ -435,9 +435,15 @@ export function useVideoStore() {
 
       onProgress?.(100);
       setVideos((prev) => [videoItem, ...prev]);
+
+      // Subscribe for real-time status updates if still processing
+      if (!isProcessed) {
+        subscribeToProcessingStatus(inserted.id);
+      }
+
       return videoItem;
     },
-    []
+    [subscribeToProcessingStatus]
   );
 
   const deleteVideo = useCallback(async (id: string) => {
@@ -529,19 +535,11 @@ export function useVideoStore() {
         onProgress?.(Math.round(pct * 0.6)); // 0-57% for video
       });
 
-      // Upload audio file to audio-tracks bucket
+      // Upload audio file to audio-tracks bucket via TUS (resumable)
       onProgress?.(60);
-      const { error: audioError } = await supabase.storage
-        .from("audio-tracks")
-        .upload(audioStoragePath, audioFile, {
-          contentType: audioFile.type || "audio/mpeg",
-          upsert: true,
-        });
-      if (audioError) {
-        console.error("Audio upload error:", audioError);
-        toast.error("Błąd uploadu audio", { description: audioError.message });
-        throw audioError;
-      }
+      await uploadFileTus(audioFile, audioStoragePath, (pct) => {
+        onProgress?.(60 + Math.round(pct * 0.2)); // 60-80% for audio
+      }, "audio-tracks");
       onProgress?.(80);
 
       // Insert metadata
