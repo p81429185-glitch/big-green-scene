@@ -251,10 +251,12 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       };
       const onUp = (e: MouseEvent) => {
         const pos = calcSeekPosition(e.clientX);
-        setSeekPosition(pos);
+        const newTime = pos * duration;
         if (videoRef.current && duration) {
-          videoRef.current.currentTime = pos * duration;
+          videoRef.current.currentTime = newTime;
         }
+        setCurrentTime(newTime);
+        setSeekPosition(pos);
         setIsSeeking(false);
       };
       const onTouchMove = (e: TouchEvent) => {
@@ -263,10 +265,12 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       };
       const onTouchEnd = (e: TouchEvent) => {
         const pos = calcSeekPosition(e.changedTouches[0].clientX);
-        setSeekPosition(pos);
+        const newTime = pos * duration;
         if (videoRef.current && duration) {
-          videoRef.current.currentTime = pos * duration;
+          videoRef.current.currentTime = newTime;
         }
+        setCurrentTime(newTime);
+        setSeekPosition(pos);
         setIsSeeking(false);
       };
       window.addEventListener("mousemove", onMove);
@@ -508,9 +512,6 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
       if (!hasAudioTrack && videoRef.current) {
         videoRef.current.volume = muted ? 0 : volume;
       }
-      // #region agent log
-      fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H4_H5", location: "BrandedVideoPlayer.tsx:volumeEffect", message: "Volume effect applied", data: { hasAudioTrack, muted, volumeState: volume, audioElementVolume: audioRef.current?.volume ?? null, videoElementVolume: videoRef.current?.volume ?? null, videoElementMuted: videoRef.current?.muted ?? null }, timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
     }, [volume, muted, hasAudioTrack]);
 
     const displayProgress = isSeeking
@@ -694,9 +695,6 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
               const val = parseFloat(e.target.value);
               setVolume(val);
               setMuted(val === 0);
-              // #region agent log
-              fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix", hypothesisId: "H4", location: "BrandedVideoPlayer.tsx:volumeSlider:onChange", message: "Volume slider changed", data: { hasAudioTrack, sliderValue: val, willMute: val === 0, hasAudioElement: !!audioRef.current, hasVideoElement: !!videoRef.current, audioElementVolumeBefore: audioRef.current?.volume ?? null, videoElementVolumeBefore: videoRef.current?.volume ?? null, videoElementMuted: videoRef.current?.muted ?? null }, timestamp: Date.now() }) }).catch(() => {});
-              // #endregion
               if (videoRef.current) videoRef.current.volume = val;
               if (hasAudioTrack && audioRef.current) audioRef.current.volume = val;
             }}

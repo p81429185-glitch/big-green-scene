@@ -261,10 +261,10 @@ export function useVideoStore() {
     return new Promise((resolve, reject) => {
       const upload = new tus.Upload(file, {
         endpoint: `${url}/storage/v1/upload/resumable`,
-        retryDelays: [0, 1000, 3000, 5000],
-        chunkSize: 6 * 1024 * 1024, // 6MB
+        retryDelays: [0, 3000, 5000, 10000, 15000, 20000],
+        chunkSize: 3 * 1024 * 1024, // 3MB
         headers: {
-          authorization: `Bearer ${token}`,
+          // authorization is set dynamically in onBeforeRequest to avoid XHR header accumulation
           apikey: anonKey,
         },
         uploadDataDuringCreation: true,
@@ -274,6 +274,11 @@ export function useVideoStore() {
           objectName: storagePath,
           contentType: file.type || "application/octet-stream",
           cacheControl: "3600",
+        },
+        onBeforeRequest: async (req) => {
+          const { data: { session } } = await supabase.auth.getSession();
+          const freshToken = session?.access_token ?? token;
+          req.setHeader("authorization", `Bearer ${freshToken}`);
         },
         onError: (error) => {
           console.error("TUS error:", error);
