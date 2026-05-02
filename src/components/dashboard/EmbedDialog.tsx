@@ -245,6 +245,13 @@ function generateCustomPlayerCode(
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${brandIconColor}" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     </button>
     <input type="range" min="0" max="1" step="0.05" value="1" id="${volSlider}" style="width:60px;height:4px;cursor:pointer;accent-color:${brandProgressColor};" oninput="${volumeInputOnclick}" />
+    <!-- Speed -->
+    <div style="position:relative;">
+      <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;font-size:11px;font-family:sans-serif;font-weight:600;" id="sbtn${uid}" onclick="(function(){var m=document.getElementById('spd${uid}');m.style.display=m.style.display==='none'?'block':'none';})()">1x</button>
+      <div id="spd${uid}" style="display:none;position:absolute;bottom:30px;right:0;background:rgba(0,0,0,0.9);border-radius:4px;padding:4px 0;min-width:80px;max-height:200px;overflow-y:auto;z-index:20;">
+        ${[0.25,0.5,0.75,1,1.25,1.5,1.75,2,3,4].map(r => `<div style="padding:4px 12px;color:#fff;font-size:11px;cursor:pointer;font-family:sans-serif;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'" onclick="(function(){var v=document.getElementById('${vid}');v.playbackRate=${r};v.preservesPitch=true;v.mozPreservesPitch=true;v.webkitPreservesPitch=true;${hasAudio ? `var a=document.getElementById('${audId}');if(a){a.playbackRate=${r};a.preservesPitch=true;a.mozPreservesPitch=true;a.webkitPreservesPitch=true;}` : ""}document.getElementById('sbtn${uid}').textContent='${r}x';document.getElementById('spd${uid}').style.display='none';})()">${r === 1 ? "Normalna" : r + "x"}</div>`).join("")}
+      </div>
+    </div>
     <!-- Quality -->
     <div style="position:relative;">
       <button style="background:none;border:none;color:${brandIconColor};cursor:pointer;display:flex;padding:4px;font-size:11px;font-family:sans-serif;" id="qbtn${uid}" onclick="(function(){var m=document.getElementById('${qualMenu}');m.style.display=m.style.display==='none'?'block':'none';})()">HD</button>
