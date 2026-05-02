@@ -705,6 +705,52 @@ const BrandedVideoPlayer = forwardRef<BrandedVideoPlayerHandle, BrandedVideoPlay
             style={{ accentColor: settings.progress_color }}
           />
 
+          {/* Speed */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowSpeedMenu((v) => !v)}
+              className="text-xs font-semibold px-1.5 py-0.5 rounded"
+              style={{ color: settings.icon_color }}
+              title="Prędkość odtwarzania"
+            >
+              {playbackRate}x
+            </button>
+            {showSpeedMenu && (
+              <div
+                className="absolute bottom-8 right-0 rounded-md shadow-lg py-1 min-w-[80px] z-50 max-h-64 overflow-y-auto"
+                style={{ background: "rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.2)" }}
+              >
+                {speedOptions.map((rate) => (
+                  <button
+                    key={rate}
+                    className="block w-full text-left px-3 py-1.5 text-xs hover:bg-white/20"
+                    style={{ color: rate === playbackRate ? settings.progress_color : "#fff" }}
+                    onClick={() => {
+                      setPlaybackRate(rate);
+                      setShowSpeedMenu(false);
+                      const v = videoRef.current;
+                      if (v) {
+                        v.playbackRate = rate;
+                        (v as any).preservesPitch = true;
+                        (v as any).mozPreservesPitch = true;
+                        (v as any).webkitPreservesPitch = true;
+                      }
+                      if (hasAudioTrack && audioRef.current) {
+                        const a = audioRef.current;
+                        a.playbackRate = rate;
+                        (a as any).preservesPitch = true;
+                        (a as any).mozPreservesPitch = true;
+                        (a as any).webkitPreservesPitch = true;
+                      }
+                    }}
+                  >
+                    {rate === 1 ? "Normalna" : `${rate}x`} {rate === playbackRate ? "✓" : ""}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Quality */}
           <div className="relative shrink-0">
             <button onClick={() => setShowQualityMenu((v) => !v)}>
