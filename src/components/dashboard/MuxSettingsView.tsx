@@ -144,6 +144,28 @@ const MuxSettingsView = ({ onConnectionStatusChange }: Props) => {
     }
   };
 
+  const handleSyncStatuses = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-mux-status", { body: {} });
+      if (error) {
+        setSyncResult({ success: false, message: `Błąd: ${error.message}` });
+      } else {
+        const ready = (data?.results || []).filter((r: any) => r.status === "ready").length;
+        setSyncResult({
+          success: true,
+          message: `Sprawdzono ${data?.count ?? 0} filmów, gotowych: ${ready}`,
+        });
+        await fetchVideos();
+      }
+    } catch (err) {
+      setSyncResult({ success: false, message: String(err) });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleSubmitSingle = async (videoId: string) => {
     setSubmittingIds((prev) => new Set(prev).add(videoId));
     try {
