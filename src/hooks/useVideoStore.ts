@@ -269,6 +269,10 @@ export function useVideoStore() {
         },
         uploadDataDuringCreation: true,
         removeFingerprintOnSuccess: true,
+        // CRITICAL: bind fingerprint to the destination path so re-uploads of the
+        // same file to a NEW path don't resume into an OLD orphaned upload.
+        fingerprint: async (f) =>
+          ["tus-br", bucket, storagePath, f.size, f.lastModified].join("-"),
         metadata: {
           bucketName: bucket,
           objectName: storagePath,
@@ -335,16 +339,20 @@ export function useVideoStore() {
     ) => {
       const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
 
-      // Strip metadata (GPS, device info) before upload
-      const cleanFile = await stripVideoMetadata(file);
-      console.log("Strip done, file size:", cleanFile.size);
+      // SAFETY: For large files (>200MB) skip ALL client-side byte rewriting
+      // (metadata strip + faststart). Past attempts to rewrite the moov atom
+      // shifted media data without updating stco/co64 offsets, which produced
+      // corrupted MP4s that Mux rejected. Mux will handle faststart server-side.
+      const STRIP_MAX_SIZE = 200 * 1024 * 1024;
+      const cleanFile = file.size > STRIP_MAX_SIZE ? file : await stripVideoMetadata(file);
+      console.log("Strip done, file size:", cleanFile.size, "(original:", file.size, ")");
 
       // --- Faststart pre-processing ---
       let fileToUpload: File = cleanFile;
       let isProcessed = false;
       const isMp4 = /\.(mp4|m4v|mov)$/i.test(file.name);
 
-      const FASTSTART_MAX_SIZE = 250 * 1024 * 1024; // 250MB — above this, skip in-browser faststart to avoid OOM
+      const FASTSTART_MAX_SIZE = 200 * 1024 * 1024;
 
       if (isMp4 && cleanFile.size > FASTSTART_MAX_SIZE) {
         console.log("Skipping client-side faststart for large file:", cleanFile.size);
@@ -404,6 +412,17 @@ export function useVideoStore() {
       console.log("Starting TUS upload, file size:", fileToUpload.size, "storage path:", storagePath);
       onProgress?.(0);
       await uploadFileTus(fileToUpload, storagePath, onProgress);
+
+      // Verify the object actually landed in storage before creating a DB row.
+      // Otherwise we'd create a "ghost" video that submit-to-mux can't sign.
+      const { data: headData, error: headErr } = await supabase.storage
+        .from("videos")
+        .list("", { search: storagePath, limit: 1 });
+      if (headErr || !headData || headData.length === 0) {
+        const msg = "Plik nie pojawił się w magazynie po wysyłce. Spróbuj ponownie.";
+        toast.error("Upload niekompletny", { description: msg });
+        throw new Error(msg);
+      }
 
       // Insert metadata (90-95%)
       onProgress?.(91);
