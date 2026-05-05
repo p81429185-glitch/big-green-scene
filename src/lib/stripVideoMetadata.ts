@@ -85,6 +85,13 @@ function filterContainerAtom(buffer: ArrayBuffer, start: number, end: number): U
 /**
  * For small files (≤HEAD_SIZE): use the original full-buffer approach.
  * For large files: scan head and tail chunks only.
+ *
+ * SAFETY: Stripping metadata from inside `moov` changes the moov size, which
+ * shifts `mdat` location. Sample-table offsets (stco/co64) inside moov are NOT
+ * updated, so the resulting MP4 is corrupted (Mux rejects it as "errored").
+ * To stay safe we ONLY strip in cases where moov sits AFTER mdat (mdat first
+ * layout): in that case shrinking moov at the end of the file does not move
+ * mdat. In faststart layout (moov before mdat) we return the file unchanged.
  */
 export async function stripVideoMetadata(file: File): Promise<File> {
   const type = file.type.toLowerCase();
