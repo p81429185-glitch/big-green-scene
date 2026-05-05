@@ -67,8 +67,11 @@ export function useVideoStore() {
   }, []);
 
   useEffect(() => {
+    // One-time per browser/version cleanup of stale TUS fingerprints
+    // from previous (corrupted-byte-stripping) pipeline.
+    clearStaleTusFingerprints();
     Promise.all([fetchVideos(), fetchFolders()]).finally(() => setLoading(false));
-    
+
     // Cleanup realtime subscriptions on unmount
     return () => {
       channelsRef.current.forEach((channel) => {
