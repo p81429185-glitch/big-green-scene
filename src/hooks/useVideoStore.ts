@@ -1,11 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { stripVideoMetadata } from "@/lib/stripVideoMetadata";
-import { quickCheck, relocateMoovToStart } from "@/lib/moovAtomUtils";
-import type { FaststartResponse } from "@/workers/faststartWorker";
 import { toast } from "sonner";
 import * as tus from "tus-js-client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import {
+  MAX_FILE_SIZE,
+  TUS_CHUNK_SIZE,
+  TUS_THRESHOLD,
+  UPLOAD_PIPELINE_VERSION,
+  isAllowedVideo,
+  formatBytes,
+  clearStaleTusFingerprints,
+} from "@/lib/uploadConstants";
 
 export interface VideoItem {
   id: string;
