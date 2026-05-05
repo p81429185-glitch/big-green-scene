@@ -411,6 +411,29 @@ const VideoPlayer = () => {
 
     load();
 
+    // Auto-sync stuck videos: if Mux webhook never fired, poll Mux directly
+    let syncTimer: ReturnType<typeof setTimeout> | null = null;
+    let syncInterval: ReturnType<typeof setInterval> | null = null;
+    const triggerSync = () => {
+      supabase.functions.invoke("sync-mux-status", { body: { video_id: id } })
+        .catch((e) => console.warn("sync-mux-status failed:", e));
+    };
+    // First sync after 8s, then every 15s while still processing
+    syncTimer = setTimeout(() => {
+      triggerSync();
+      syncInterval = setInterval(() => {
+        setVideo((curr) => {
+          if (curr && (curr.mux_status === "processing" || curr.mux_status === "pending")) {
+            triggerSync();
+          } else if (syncInterval) {
+            clearInterval(syncInterval);
+            syncInterval = null;
+          }
+          return curr;
+        });
+      }, 15000);
+    }, 8000);
+
     // Realtime subscription for mux_status changes
     const channel = supabase
       .channel(`video-mux-${id}`)
@@ -424,15 +447,14 @@ const VideoPlayer = () => {
         },
         (payload) => {
           const updated = payload.new as Video;
-          // #region agent log
-          fetch("http://127.0.0.1:7939/ingest/406639ab-d399-4adb-99bb-94bd7c7ec39f", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "ea7bfa" }, body: JSON.stringify({ sessionId: "ea7bfa", runId: "pre-fix-processing", hypothesisId: "P2", location: "VideoPlayer.tsx:realtime:update", message: "Realtime video status update", data: { videoId: updated.id, processingStatus: updated.processing_status, isProcessed: updated.is_processed, muxStatus: updated.mux_status, hasMuxPlaybackId: !!updated.mux_playback_id, hasMuxAssetId: !!updated.mux_asset_id }, timestamp: Date.now() }) }).catch(() => {});
-          // #endregion
           setVideo((prev) => prev ? { ...prev, ...updated } : prev);
         }
       )
       .subscribe();
 
     return () => {
+      if (syncTimer) clearTimeout(syncTimer);
+      if (syncInterval) clearInterval(syncInterval);
       supabase.removeChannel(channel);
     };
   }, [id]);

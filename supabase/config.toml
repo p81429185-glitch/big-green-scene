@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.test-mux-connection]
 verify_jwt = false
+
+[functions.sync-mux-status]
+verify_jwt = false

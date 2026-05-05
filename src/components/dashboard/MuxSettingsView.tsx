@@ -33,6 +33,8 @@ const MuxSettingsView = ({ onConnectionStatusChange }: Props) => {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [submittingIds, setSubmittingIds] = useState<Set<string>>(new Set());
 
@@ -139,6 +141,28 @@ const MuxSettingsView = ({ onConnectionStatusChange }: Props) => {
       setBackfillResult({ success: false, message: String(err) });
     } finally {
       setBackfilling(false);
+    }
+  };
+
+  const handleSyncStatuses = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-mux-status", { body: {} });
+      if (error) {
+        setSyncResult({ success: false, message: `Błąd: ${error.message}` });
+      } else {
+        const ready = (data?.results || []).filter((r: any) => r.status === "ready").length;
+        setSyncResult({
+          success: true,
+          message: `Sprawdzono ${data?.count ?? 0} filmów, gotowych: ${ready}`,
+        });
+        await fetchVideos();
+      }
+    } catch (err) {
+      setSyncResult({ success: false, message: String(err) });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -309,6 +333,37 @@ const MuxSettingsView = ({ onConnectionStatusChange }: Props) => {
             <div className={`flex items-center gap-2 text-sm ${backfillResult.success ? "text-primary" : "text-destructive"}`}>
               {backfillResult.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               <span>{backfillResult.message}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Sync from Mux */}
+      <Card className="p-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-medium">Synchronizuj statusy z Mux</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Jeśli filmy „utknęły" w stanie przetwarzania (np. webhook Mux nie dotarł), pobierz aktualne statusy bezpośrednio z Mux API.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button onClick={handleSyncStatuses} disabled={syncing} variant="outline" size="sm">
+            {syncing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Synchronizacja...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Synchronizuj utknięte filmy
+              </>
+            )}
+          </Button>
+          {syncResult && (
+            <div className={`flex items-center gap-2 text-sm ${syncResult.success ? "text-primary" : "text-destructive"}`}>
+              {syncResult.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+              <span>{syncResult.message}</span>
             </div>
           )}
         </div>
