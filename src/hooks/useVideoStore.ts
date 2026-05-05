@@ -11,6 +11,13 @@ import {
   isAllowedVideo,
   formatBytes,
   clearStaleTusFingerprints,
+  CHUNK_SIZE_SMALL,
+  CHUNK_SIZE_MEDIUM,
+  CHUNK_SIZE_LARGE,
+  SPEED_THRESHOLD_LOW,
+  SPEED_THRESHOLD_HIGH,
+  CHUNKS_BEFORE_ADAPT,
+  SPEED_DROP_THRESHOLD,
 } from "@/lib/uploadConstants";
 
 export interface VideoItem {
@@ -49,6 +56,10 @@ export function useVideoStore() {
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
+
+  // Adaptive chunk sizing state (persists between uploads)
+  const adaptiveChunkSizeRef = useRef(TUS_CHUNK_SIZE);
+  const speedHistoryRef = useRef<number[]>([]);
 
   const fetchVideos = useCallback(async () => {
     const { data } = await supabase
@@ -291,12 +302,16 @@ export function useVideoStore() {
     let lastSampleBytes = 0;
     let smoothedSpeed = 0;
 
+    // Adaptive chunk sizing: measure speed, adjust for next upload
+    let chunksSent = 0;
+    const currentChunkSize = adaptiveChunkSizeRef.current;
+
     return new Promise((resolve, reject) => {
       const upload = new tus.Upload(file, {
         endpoint: `${url}/storage/v1/upload/resumable`,
         // Exponential backoff: 5 retries (0, 2s, 5s, 10s, 20s)
         retryDelays: [0, 2000, 5000, 10000, 20000],
-        chunkSize: TUS_CHUNK_SIZE,
+        chunkSize: currentChunkSize,
         // 6 parallel chunks = 36MB in-flight (6MB × 6). Optimized for >50 Mbps uplink.
         // TUS spec allows arbitrary concurrency: https://tus.io/protocols/resumable-upload#upload-concatenation
         parallelUploads: 6,
@@ -345,6 +360,39 @@ export function useVideoStore() {
             smoothedSpeed = smoothedSpeed === 0 ? inst : smoothedSpeed * 0.7 + inst * 0.3;
             lastSampleTs = now;
             lastSampleBytes = bytesUploaded;
+
+            // Track speed for adaptive chunk sizing
+            chunksSent++;
+            if (chunksSent <= CHUNKS_BEFORE_ADAPT) {
+              speedHistoryRef.current.push(smoothedSpeed);
+            }
+
+            // After measuring initial chunks, select optimal chunk size for NEXT upload
+            if (chunksSent === CHUNKS_BEFORE_ADAPT && speedHistoryRef.current.length >= CHUNKS_BEFORE_ADAPT) {
+              const avgSpeed = speedHistoryRef.current.reduce((a, b) => a + b, 0) / speedHistoryRef.current.length;
+              const newChunkSize = avgSpeed < SPEED_THRESHOLD_LOW
+                ? CHUNK_SIZE_SMALL
+                : avgSpeed < SPEED_THRESHOLD_HIGH
+                  ? CHUNK_SIZE_MEDIUM
+                  : CHUNK_SIZE_LARGE;
+
+              adaptiveChunkSizeRef.current = newChunkSize;
+              console.info(`[adaptive-chunk] Measured speed: ${(avgSpeed / (1024 * 1024)).toFixed(2)} MB/s, selected chunk size: ${formatBytes(newChunkSize)} for next upload`);
+            }
+
+            // Detect speed drops (downgrade chunk size for next upload)
+            if (chunksSent > CHUNKS_BEFORE_ADAPT && speedHistoryRef.current.length >= 3) {
+              const recent = smoothedSpeed;
+              const baseline = (speedHistoryRef.current[0] + speedHistoryRef.current[1]) / 2;
+              if (recent < baseline * SPEED_DROP_THRESHOLD && adaptiveChunkSizeRef.current > CHUNK_SIZE_SMALL) {
+                const oldSize = adaptiveChunkSizeRef.current;
+                adaptiveChunkSizeRef.current = adaptiveChunkSizeRef.current === CHUNK_SIZE_LARGE
+                  ? CHUNK_SIZE_MEDIUM
+                  : CHUNK_SIZE_SMALL;
+                console.warn(`[adaptive-chunk] Speed drop detected (${(recent / (1024 * 1024)).toFixed(2)} MB/s vs ${(baseline / (1024 * 1024)).toFixed(2)} MB/s baseline), downgrading: ${formatBytes(oldSize)} → ${formatBytes(adaptiveChunkSizeRef.current)} for next upload`);
+                speedHistoryRef.current = []; // Reset history after downgrade
+              }
+            }
           }
           const pct = bytesTotal > 0 ? (bytesUploaded / bytesTotal) * 100 : 0;
           const remaining = bytesTotal - bytesUploaded;

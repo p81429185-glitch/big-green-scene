@@ -5,6 +5,19 @@ export const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5 368 709 120
 // 6 MB = Supabase TUS requirement (chunk size must be multiple of 6MB).
 export const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
 
+// Adaptive chunk sizing tiers (all multiples of 6MB for Supabase compatibility)
+export const CHUNK_SIZE_SMALL = 6 * 1024 * 1024;   // 6MB  — slow/unstable connections
+export const CHUNK_SIZE_MEDIUM = 12 * 1024 * 1024; // 12MB — medium speed
+export const CHUNK_SIZE_LARGE = 24 * 1024 * 1024;  // 24MB — fast connections (>10 MB/s)
+
+// Speed thresholds for adaptive sizing (bytes/sec)
+export const SPEED_THRESHOLD_LOW = 2 * 1024 * 1024;   // 2 MB/s
+export const SPEED_THRESHOLD_HIGH = 10 * 1024 * 1024; // 10 MB/s
+
+// Adaptive sizing config
+export const CHUNKS_BEFORE_ADAPT = 3;     // Measure speed over first N chunks
+export const SPEED_DROP_THRESHOLD = 0.5;  // 50% drop triggers downgrade
+
 // Files smaller than this go through standard `supabase.storage.upload()`.
 // Above this, switch to resumable TUS.
 export const TUS_THRESHOLD = 6 * 1024 * 1024;
