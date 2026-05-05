@@ -35,7 +35,7 @@ const Dashboard = () => {
   const { videos, folders, loading: videosLoading, uploadVideo, uploadVideoWithSeparateAudio, deleteVideo, toggleFavorite, createFolder, deleteFolder, moveVideo, moveFolder } = useVideoStore();
 
   const {
-    queue, minimized, setMinimized, addFiles, addDualFiles, clearQueue,
+    queue, minimized, setMinimized, addFiles, addDualFiles, clearQueue, cancelItem,
     isActive, hasItems, doneCount, totalCount, overallProgress,
   } = useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio });
 
@@ -226,6 +226,7 @@ const Dashboard = () => {
           minimized={minimized}
           onToggleMinimize={() => setMinimized((m) => !m)}
           onClose={clearQueue}
+          onCancelItem={cancelItem}
           isActive={isActive}
           doneCount={doneCount}
           totalCount={totalCount}
