@@ -344,7 +344,14 @@ export function useVideoStore() {
       let isProcessed = false;
       const isMp4 = /\.(mp4|m4v|mov)$/i.test(file.name);
 
-      if (isMp4) {
+      const FASTSTART_MAX_SIZE = 250 * 1024 * 1024; // 250MB — above this, skip in-browser faststart to avoid OOM
+
+      if (isMp4 && cleanFile.size > FASTSTART_MAX_SIZE) {
+        console.log("Skipping client-side faststart for large file:", cleanFile.size);
+        toast.info("Duży plik – optymalizacja zostanie wykonana po stronie serwera (Mux).");
+        fileToUpload = cleanFile;
+        isProcessed = false;
+      } else if (isMp4) {
         try {
           // Step 1: Quick check using only first 64KB
           const headerSlice = cleanFile.slice(0, 65536);
@@ -354,17 +361,24 @@ export function useVideoStore() {
           console.log("Is faststart:", isFast);
 
           if (!isFast) {
-            // Need to process — read full file
-            const fullBuffer = await cleanFile.arrayBuffer();
-            const SIZE_100MB = 100 * 1024 * 1024;
+            // Need to process — safely read full file (may OOM on edge cases)
+            let fullBuffer: ArrayBuffer;
+            try {
+              fullBuffer = await cleanFile.arrayBuffer();
+            } catch (allocErr) {
+              console.error("arrayBuffer() failed (likely OOM), skipping faststart:", allocErr);
+              toast.info("Pominięto optymalizację (Mux dokończy po stronie serwera).");
+              fileToUpload = cleanFile;
+              isProcessed = false;
+              throw new Error("__skip_faststart__");
+            }
 
+            const SIZE_100MB = 100 * 1024 * 1024;
             let processedBuffer: ArrayBuffer;
 
             if (cleanFile.size < SIZE_100MB) {
-              // Synchronous processing for small files
               processedBuffer = relocateMoovToStart(fullBuffer);
             } else {
-              // Worker processing for large files
               console.log("Starting faststart worker for file size:", cleanFile.size);
               toast.info("Optymalizacja wideo dla szybkiego odtwarzania...");
               processedBuffer = await processFileInWorker(fullBuffer);
@@ -376,12 +390,13 @@ export function useVideoStore() {
             });
             isProcessed = true;
           }
-        } catch (err) {
-          // Processing failed — upload original, don't block
-          console.error("Worker/faststart failed:", err);
-          toast.error("Błąd optymalizacji", { description: String(err) });
-          fileToUpload = cleanFile;
-          isProcessed = false;
+        } catch (err: any) {
+          if (err?.message !== "__skip_faststart__") {
+            console.error("Worker/faststart failed:", err);
+            toast.info("Pominięto optymalizację (Mux dokończy po stronie serwera).");
+            fileToUpload = cleanFile;
+            isProcessed = false;
+          }
         }
       }
 
