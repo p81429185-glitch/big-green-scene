@@ -1,53 +1,46 @@
-## Problem
+## Co naprawdę się dzieje
 
-Pliki >200MB psują się przy wysyłce. Po naszej analizie znaleźliśmy realną przyczynę.
+Sprawdziłem DB — **wszystkie 5 ostatnich filmów** ma `mux_asset_id` i `mux_status: processing`, niektóre od 2 dni. To znaczy:
 
-## Root cause
+- Plik wgrał się do storage poprawnie ✅
+- `submit-to-mux` zadziałało, Mux dostał plik i zaczął transkodować ✅
+- **Webhook `video.asset.ready` z Mux nigdy nie dociera do nas** ❌ → DB nie dostaje finalnego statusu, player widzi `processing` i pokazuje „Błąd odtwarzania"
 
-W `src/hooks/useVideoStore.ts` (linia ~358) w funkcji `uploadVideo`, dla każdego pliku MP4/MOV bez „faststart" wywoływane jest:
+Mux raczej już dawno skończył transkodować (są nawet pliki <100 MB sprzed 2 dni z tym samym problemem). Problem to webhook (zły URL w Mux dashboard, zła wartość `MUX_WEBHOOK_SECRET`, albo nigdy nie został podpięty po fixach).
 
-```ts
-const fullBuffer = await cleanFile.arrayBuffer();
-// ... potem processFileInWorker(fullBuffer)
-```
+## Plan naprawy
 
-To **ładuje cały plik do RAM przeglądarki** (a worker dostaje go w transferze, więc kolejna kopia 1:1). Dla pliku 300 MB–1 GB:
+### 1. Nowa edge function `sync-mux-status`
+Odpytuje Mux API `GET /video/v1/assets/:id` dla każdego filmu z `mux_status in (processing, pending)` i aktualizuje DB:
+- `ready` → `mux_status=ready`, `mux_playback_id`, `is_processed=true`, `processing_status=ready`
+- `errored` → `mux_status=error`, `processing_status=failed`
+- inne → bez zmian
 
-- przeglądarka rzuca `RangeError: Array buffer allocation failed` lub OOM,
-- worker pada, `catch` wpada w `toast.error("Błąd optymalizacji")`,
-- dalej kod próbuje uploadować `cleanFile`, ale po wcześniejszym `stripVideoMetadata` referencje do oryginalnego File potrafią być niestabilne, a w wielu przypadkach przeglądarka zostaje już w stanie OOM i TUS nie kończy uploadu.
-- W efekcie rekord w `videos` powstaje rzadko / albo z uszkodzonym plikiem → embed/odtwarzanie nie działa.
+Może też przyjąć `{ video_id }` dla pojedynczego filmu.
 
-To jest klasyczny problem już znany na tym projekcie (mamy memory: „Client-side processing… Web Workers to bypass Edge memory limits"), ale pełny `arrayBuffer()` nadal omija to zabezpieczenie.
+### 2. Auto-sync w playerze
+W `BrandedVideoPlayer` / `VideoPlayer` jeśli wideo jest w stanie `processing` przez >10s — wywołaj `sync-mux-status` z `video_id`. Jak Mux skończył, status się odświeży realtime (subscription już istnieje) i player zacznie grać.
 
-`stripVideoMetadata` ma już ścieżkę „large file" opartą o `Blob.slice()` i działa OK do dużych rozmiarów — problem to wyłącznie etap **faststart**.
+### 3. Przycisk „Synchronizuj z Mux" w Admin → Mux Settings
+Dla manualnego odpalenia sync-all, gdyby coś znowu utknęło.
 
-Mux i tak transkoduje plik do HLS po stronie serwera, więc faststart na oryginalnym MP4 jest potrzebny **tylko do fallbacku**, zanim Mux skończy. Dla dużych plików rezygnacja z faststartu jest bezpieczna: HLS z Mux załatwia szybkie odtwarzanie.
+### 4. Diagnostyka webhooka
+Dodać w `MuxSettingsView` info o URL webhooka, który trzeba ustawić w Mux dashboard:
+`https://bdwhqsjbfnbxthfjdbfw.supabase.co/functions/v1/mux-webhook`
+oraz przypomnienie o `MUX_WEBHOOK_SECRET`. To jednorazowa konfiguracja po stronie Mux — nie da się zrobić tego z kodu.
 
-## Fix (1 plik)
+### 5. Natychmiastowy fix dla obecnych 5 filmów
+Po wdrożeniu funkcji wywołać `sync-mux-status` bez `video_id` — przejdzie po wszystkich, zaktualizuje statusy. Filmik z screenshota powinien wtedy zagrać.
 
-**`src/hooks/useVideoStore.ts`**, w `uploadVideo`:
+## Pliki do zmiany
 
-1. Dodać próg `FASTSTART_MAX_SIZE = 250 * 1024 * 1024` (250 MB).
-2. Jeśli `cleanFile.size > FASTSTART_MAX_SIZE` → pominąć faststart całkowicie (`isProcessed = false`, `fileToUpload = cleanFile`), pokazać delikatny `toast.info("Duży plik – optymalizacja zostanie wykonana po stronie serwera (Mux).")`.
-3. Dla plików ≤250 MB: zachować obecną ścieżkę (worker), ale opakować `arrayBuffer()` w try/catch, żeby OOM nie blokował całego uploadu — w razie błędu lecimy z `cleanFile` dalej, a Mux dorobi resztę.
-4. Upewnić się, że `processing_status: "pending"` + późniejszy webhook Mux ustawia `ready` (już działa).
+| Plik | Akcja |
+|---|---|
+| `supabase/functions/sync-mux-status/index.ts` | **Nowy** — pull-based sync z Mux API |
+| `src/components/video/BrandedVideoPlayer.tsx` | Dodać auto-trigger `sync-mux-status` przy `processing` |
+| `src/components/dashboard/MuxSettingsView.tsx` | Przycisk „Synchronizuj statusy" + info o webhook URL |
 
-Dzięki temu:
-- TUS upload (3 MB chunki, już działa) jest jedyną operacją na dużych plikach,
-- nie ma allokacji 300 MB+ w pamięci przeglądarki,
-- plik trafia do storage poprawnie, Mux generuje HLS i `mp4_support: capped-1080p`,
-- embed i player (HLS-first, MP4 fallback) działają normalnie.
-
-## Walidacja po wdrożeniu
-
-1. Wgrać plik ~500 MB MP4 → sprawdzić, że upload kończy się 100%, rekord w `videos` ma `mux_status: processing`, po chwili `ready`.
-2. Otworzyć player + embed → HLS gra od razu.
-3. Sprawdzić logi `submit-to-mux` i `mux-webhook` (powinny być 200, status `ready`).
-
-## Czego NIE zmieniamy
-
-- `stripVideoMetadata` (już chunked, OK).
-- `submit-to-mux` (działa po ostatnim fixie `mp4_support`).
-- TUS / `chunkSize` (3 MB jest OK dla Supabase Storage resumable).
-- Konfiguracji bucketów / RLS.
+## Czego NIE ruszamy
+- TUS, faststart, storage, RLS — działają.
+- `submit-to-mux` — działa (filmy mają `mux_asset_id`).
+- `mux-webhook` — kod jest OK, problem jest w konfiguracji po stronie Mux dashboard.
