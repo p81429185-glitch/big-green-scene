@@ -338,6 +338,37 @@ const MuxSettingsView = ({ onConnectionStatusChange }: Props) => {
         </div>
       </Card>
 
+      {/* Sync from Mux */}
+      <Card className="p-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-medium">Synchronizuj statusy z Mux</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Jeśli filmy „utknęły" w stanie przetwarzania (np. webhook Mux nie dotarł), pobierz aktualne statusy bezpośrednio z Mux API.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button onClick={handleSyncStatuses} disabled={syncing} variant="outline" size="sm">
+            {syncing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Synchronizacja...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Synchronizuj utknięte filmy
+              </>
+            )}
+          </Button>
+          {syncResult && (
+            <div className={`flex items-center gap-2 text-sm ${syncResult.success ? "text-primary" : "text-destructive"}`}>
+              {syncResult.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+              <span>{syncResult.message}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* Real-time Video Status Table */}
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between">
