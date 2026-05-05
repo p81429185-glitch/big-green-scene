@@ -625,27 +625,63 @@ export function useVideoStore() {
       videoFile: File,
       audioFile: File,
       folderId: string | null,
-      onProgress?: (pct: number) => void,
-      aspectRatio?: string
+      onProgress?: (info: { bytesUploaded: number; bytesTotal: number; pct: number; speed: number; eta: number }) => void,
+      aspectRatio?: string,
+      signal?: AbortSignal
     ) => {
+      const vErr = validateFileForUpload(videoFile);
+      if (vErr) {
+        toast.error("Plik odrzucony", { description: vErr });
+        throw new Error(vErr);
+      }
+      if (audioFile.size > MAX_FILE_SIZE) {
+        toast.error("Plik audio za duży", { description: `${formatBytes(audioFile.size)}` });
+        throw new Error("Audio file too large");
+      }
+
       const uuid = crypto.randomUUID();
       const videoStoragePath = `${uuid}_${sanitizeFileName(videoFile.name)}`;
       const audioStoragePath = `${uuid}_audio.mp3`;
+      const totalBytes = videoFile.size + audioFile.size;
 
-      // Upload video file via TUS
-      onProgress?.(0);
-      await uploadFileTus(videoFile, videoStoragePath, (pct) => {
-        onProgress?.(Math.round(pct * 0.6)); // 0-57% for video
-      });
+      const makeProgress = (offsetBytes: number) =>
+        (info: { bytesUploaded: number; bytesTotal: number; pct: number; speed: number; eta: number }) => {
+          const combinedBytes = offsetBytes + info.bytesUploaded;
+          const pct = totalBytes > 0 ? (combinedBytes / totalBytes) * 100 : 0;
+          const remaining = totalBytes - combinedBytes;
+          const eta = info.speed > 0 ? remaining / info.speed : Infinity;
+          onProgress?.({ bytesUploaded: combinedBytes, bytesTotal: totalBytes, pct, speed: info.speed, eta });
+        };
 
-      // Upload audio file to audio-tracks bucket via TUS (resumable)
-      onProgress?.(60);
-      await uploadFileTus(audioFile, audioStoragePath, (pct) => {
-        onProgress?.(60 + Math.round(pct * 0.2)); // 60-80% for audio
-      }, "audio-tracks");
-      onProgress?.(80);
+      try {
+        if (videoFile.size > TUS_THRESHOLD) {
+          await uploadFileTus(videoFile, videoStoragePath, { onProgress: makeProgress(0), signal });
+        } else {
+          await uploadFileStandard(videoFile, videoStoragePath, "videos", makeProgress(0));
+        }
+        if (audioFile.size > TUS_THRESHOLD) {
+          await uploadFileTus(audioFile, audioStoragePath, { onProgress: makeProgress(videoFile.size), bucket: "audio-tracks", signal });
+        } else {
+          await uploadFileStandard(audioFile, audioStoragePath, "audio-tracks", makeProgress(videoFile.size));
+        }
+      } catch (err: any) {
+        try { await supabase.storage.from("videos").remove([videoStoragePath]); } catch {}
+        try { await supabase.storage.from("audio-tracks").remove([audioStoragePath]); } catch {}
+        throw err;
+      }
 
-      // Insert metadata
+      const { data: headData } = await supabase.storage
+        .from("videos")
+        .list("", { search: videoStoragePath, limit: 1 });
+      const storedSize = (headData?.[0] as any)?.metadata?.size as number | undefined;
+      if (typeof storedSize === "number" && storedSize !== videoFile.size) {
+        try { await supabase.storage.from("videos").remove([videoStoragePath]); } catch {}
+        try { await supabase.storage.from("audio-tracks").remove([audioStoragePath]); } catch {}
+        const msg = `Niezgodność rozmiaru wideo (${storedSize} vs ${videoFile.size}).`;
+        toast.error("Upload uszkodzony", { description: msg });
+        throw new Error(msg);
+      }
+
       const title = videoFile.name.replace(/\.[^/.]+$/, "");
       const { data: inserted, error: insertError } = await supabase
         .from("videos")
@@ -664,11 +700,10 @@ export function useVideoStore() {
         .single();
 
       if (insertError) {
-        console.error("DB insert error:", insertError);
+        console.error("[upload] DB insert error:", insertError);
         toast.error("Błąd bazy danych", { description: insertError.message });
         throw insertError;
       }
-      onProgress?.(90);
 
       const videoItem: VideoItem = {
         ...inserted,
@@ -677,19 +712,16 @@ export function useVideoStore() {
         processing_status: "ready",
       } as VideoItem;
 
-      // Generate thumbnail
       generateThumbnail(videoFile, inserted.id).then((thumbUrl) => {
         if (thumbUrl) {
           setVideos((prev) => prev.map((v) => v.id === inserted.id ? { ...v, thumbnail_url: thumbUrl } : v));
         }
       });
 
-      // Submit to Mux
       supabase.functions.invoke("submit-to-mux", {
         body: { video_id: inserted.id, storage_path: videoStoragePath },
       }).catch(() => {});
 
-      onProgress?.(100);
       setVideos((prev) => [videoItem, ...prev]);
       return videoItem;
     },
