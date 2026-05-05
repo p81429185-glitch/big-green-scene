@@ -32,7 +32,7 @@ async function submitSingleVideoToMux(
     body: JSON.stringify({
       input: [{ url: signedData.signedUrl }],
       playback_policy: ["public"],
-      mp4_support: "standard",
+      mp4_support: "capped-1080p",
     }),
   });
 
