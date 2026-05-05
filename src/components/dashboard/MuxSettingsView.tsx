@@ -33,6 +33,8 @@ const MuxSettingsView = ({ onConnectionStatusChange }: Props) => {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [submittingIds, setSubmittingIds] = useState<Set<string>>(new Set());
 
