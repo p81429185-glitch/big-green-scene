@@ -413,6 +413,17 @@ export function useVideoStore() {
       onProgress?.(0);
       await uploadFileTus(fileToUpload, storagePath, onProgress);
 
+      // Verify the object actually landed in storage before creating a DB row.
+      // Otherwise we'd create a "ghost" video that submit-to-mux can't sign.
+      const { data: headData, error: headErr } = await supabase.storage
+        .from("videos")
+        .list("", { search: storagePath, limit: 1 });
+      if (headErr || !headData || headData.length === 0) {
+        const msg = "Plik nie pojawił się w magazynie po wysyłce. Spróbuj ponownie.";
+        toast.error("Upload niekompletny", { description: msg });
+        throw new Error(msg);
+      }
+
       // Insert metadata (90-95%)
       onProgress?.(91);
       console.log("Inserting to DB, is_processed:", isProcessed);
