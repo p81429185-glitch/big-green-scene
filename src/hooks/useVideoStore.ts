@@ -257,7 +257,26 @@ export function useVideoStore() {
     }
   };
 
-  const uploadFileTus = async (file: File, storagePath: string, onProgress?: (pct: number) => void, bucket = "videos"): Promise<void> => {
+  /**
+   * Resumable upload via Supabase TUS endpoint.
+   *
+   * - 6 MB chunks (Supabase requires multiple of 6 MB)
+   * - parallelUploads = 3 (cap concurrency)
+   * - retry per chunk: exponential backoff up to 5 retries
+   * - resumes on page reload via tus-js-client URL storage in localStorage
+   * - cancellable via AbortSignal
+   * - rich progress: bytes sent, speed, ETA
+   */
+  const uploadFileTus = async (
+    file: File,
+    storagePath: string,
+    options: {
+      onProgress?: (info: { bytesUploaded: number; bytesTotal: number; pct: number; speed: number; eta: number }) => void;
+      bucket?: string;
+      signal?: AbortSignal;
+    } = {}
+  ): Promise<void> => {
+    const { onProgress, bucket = "videos", signal } = options;
     const url = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -267,21 +286,27 @@ export function useVideoStore() {
       throw new Error("Sesja wygasła – zaloguj się ponownie, aby przesłać plik.");
     }
 
+    const startTs = Date.now();
+    let lastSampleTs = startTs;
+    let lastSampleBytes = 0;
+    let smoothedSpeed = 0;
+
     return new Promise((resolve, reject) => {
       const upload = new tus.Upload(file, {
         endpoint: `${url}/storage/v1/upload/resumable`,
-        retryDelays: [0, 3000, 5000, 10000, 15000, 20000],
-        chunkSize: 3 * 1024 * 1024, // 3MB
+        // Exponential backoff: 5 retries (0, 2s, 5s, 10s, 20s)
+        retryDelays: [0, 2000, 5000, 10000, 20000],
+        chunkSize: TUS_CHUNK_SIZE,
+        parallelUploads: 3,
         headers: {
-          // authorization is set dynamically in onBeforeRequest to avoid XHR header accumulation
           apikey: anonKey,
         },
         uploadDataDuringCreation: true,
         removeFingerprintOnSuccess: true,
-        // CRITICAL: bind fingerprint to the destination path so re-uploads of the
-        // same file to a NEW path don't resume into an OLD orphaned upload.
+        // Fingerprint scoped to bucket+path+pipeline-version. Different pipeline
+        // versions never resume each other (avoids byte-mismatch corruption).
         fingerprint: async (f) =>
-          ["tus-br", bucket, storagePath, f.size, f.lastModified].join("-"),
+          [UPLOAD_PIPELINE_VERSION, bucket, storagePath, f.size, f.lastModified].join("|"),
         metadata: {
           bucketName: bucket,
           objectName: storagePath,
@@ -289,154 +314,131 @@ export function useVideoStore() {
           cacheControl: "3600",
         },
         onBeforeRequest: async (req) => {
-          const { data: { session } } = await supabase.auth.getSession();
-          const freshToken = session?.access_token ?? token;
+          const { data: { session: s } } = await supabase.auth.getSession();
+          const freshToken = s?.access_token ?? token;
           req.setHeader("authorization", `Bearer ${freshToken}`);
         },
-        onError: (error) => {
-          console.error("TUS error:", error);
-          toast.error("Błąd uploadu", { description: String(error.message) });
+        onShouldRetry: (err: any, retryAttempt: number) => {
+          // Cap at 5 retries per chunk; fail fast on auth errors
+          const status = err?.originalResponse?.getStatus?.();
+          if (status === 401 || status === 403) return false;
+          return retryAttempt < 5;
+        },
+        onError: (error: any) => {
+          console.error("[upload] TUS error", {
+            fileName: file.name,
+            fileSize: file.size,
+            storagePath,
+            error: error?.message,
+            cause: error?.originalResponse?.getStatus?.(),
+          });
           reject(new Error(`Upload failed: ${error.message}`));
         },
         onProgress: (bytesUploaded, bytesTotal) => {
-          const pct = Math.round((bytesUploaded / bytesTotal) * 95);
-          onProgress?.(pct);
+          const now = Date.now();
+          const dt = (now - lastSampleTs) / 1000;
+          if (dt >= 0.5) {
+            const inst = (bytesUploaded - lastSampleBytes) / dt;
+            // EMA smoothing
+            smoothedSpeed = smoothedSpeed === 0 ? inst : smoothedSpeed * 0.7 + inst * 0.3;
+            lastSampleTs = now;
+            lastSampleBytes = bytesUploaded;
+          }
+          const pct = bytesTotal > 0 ? (bytesUploaded / bytesTotal) * 100 : 0;
+          const remaining = bytesTotal - bytesUploaded;
+          const eta = smoothedSpeed > 0 ? remaining / smoothedSpeed : Infinity;
+          onProgress?.({ bytesUploaded, bytesTotal, pct, speed: smoothedSpeed, eta });
         },
         onSuccess: () => {
+          console.info("[upload] TUS success", {
+            fileName: file.name,
+            fileSize: file.size,
+            storagePath,
+            elapsedSec: Math.round((Date.now() - startTs) / 1000),
+          });
           resolve();
         },
       });
 
-      // Check for previous uploads to resume
+      // Resume previous upload (same fingerprint = same bucket/path/version/file).
       upload.findPreviousUploads().then((previousUploads) => {
         if (previousUploads.length) {
+          console.info("[upload] resuming previous TUS upload", { storagePath });
           upload.resumeFromPreviousUpload(previousUploads[0]);
         }
         upload.start();
       });
+
+      // Cancel hook
+      if (signal) {
+        if (signal.aborted) {
+          upload.abort(true);
+          reject(new DOMException("Upload aborted", "AbortError"));
+          return;
+        }
+        signal.addEventListener("abort", () => {
+          try { upload.abort(true); } catch {}
+          reject(new DOMException("Upload aborted", "AbortError"));
+        });
+      }
     });
   };
 
-  const processFileInWorker = (buffer: ArrayBuffer): Promise<ArrayBuffer> => {
-    return new Promise((resolve, reject) => {
-      const worker = new Worker(
-        new URL("../workers/faststartWorker.ts", import.meta.url),
-        { type: "module" }
-      );
-      worker.onmessage = (e: MessageEvent<FaststartResponse>) => {
-        worker.terminate();
-        if (e.data.type === "DONE") resolve(e.data.buffer);
-        else reject(new Error(e.data.error));
-      };
-      worker.onerror = (err) => {
-        worker.terminate();
-        reject(new Error(err.message || "Worker error"));
-      };
-      worker.postMessage(
-        { type: "PROCESS", buffer, videoId: "upload" },
-        [buffer]
-      );
-    });
+  /**
+   * Standard (non-resumable) upload for small files (< 6 MB).
+   * Single PUT — no benefit from TUS overhead.
+   */
+  const uploadFileStandard = async (
+    file: File,
+    storagePath: string,
+    bucket = "videos",
+    onProgress?: (info: { bytesUploaded: number; bytesTotal: number; pct: number; speed: number; eta: number }) => void
+  ): Promise<void> => {
+    onProgress?.({ bytesUploaded: 0, bytesTotal: file.size, pct: 0, speed: 0, eta: Infinity });
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(storagePath, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+    if (error) throw new Error(error.message);
+    onProgress?.({ bytesUploaded: file.size, bytesTotal: file.size, pct: 100, speed: 0, eta: 0 });
+  };
+
+  /**
+   * Pre-flight validation. Returns null if OK, error message otherwise.
+   */
+  const validateFileForUpload = (file: File): string | null => {
+    if (file.size <= 0) return "Plik jest pusty.";
+    if (file.size > MAX_FILE_SIZE) {
+      return `Plik za duży (${formatBytes(file.size)}). Maksimum to ${formatBytes(MAX_FILE_SIZE)}.`;
+    }
+    if (!isAllowedVideo(file)) {
+      return `Nieobsługiwany format pliku: ${file.type || file.name}. Wgraj plik wideo (mp4, mov, webm, mkv...).`;
+    }
+    return null;
   };
 
   const uploadVideo = useCallback(
     async (
       file: File,
       folderId: string | null,
-      onProgress?: (pct: number) => void,
-      aspectRatio?: string
+      onProgress?: (info: { bytesUploaded: number; bytesTotal: number; pct: number; speed: number; eta: number }) => void,
+      aspectRatio?: string,
+      signal?: AbortSignal
     ) => {
+      // PRE-FLIGHT: validate size & MIME
+      const validationError = validateFileForUpload(file);
+      if (validationError) {
+        toast.error("Plik odrzucony", { description: validationError });
+        throw new Error(validationError);
+      }
+
       const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
-
-      // SAFETY: For large files (>200MB) skip ALL client-side byte rewriting
-      // (metadata strip + faststart). Past attempts to rewrite the moov atom
-      // shifted media data without updating stco/co64 offsets, which produced
-      // corrupted MP4s that Mux rejected. Mux will handle faststart server-side.
-      const STRIP_MAX_SIZE = 200 * 1024 * 1024;
-      const cleanFile = file.size > STRIP_MAX_SIZE ? file : await stripVideoMetadata(file);
-      console.log("Strip done, file size:", cleanFile.size, "(original:", file.size, ")");
-
-      // --- Faststart pre-processing ---
-      let fileToUpload: File = cleanFile;
-      let isProcessed = false;
-      const isMp4 = /\.(mp4|m4v|mov)$/i.test(file.name);
-
-      const FASTSTART_MAX_SIZE = 200 * 1024 * 1024;
-
-      if (isMp4 && cleanFile.size > FASTSTART_MAX_SIZE) {
-        console.log("Skipping client-side faststart for large file:", cleanFile.size);
-        toast.info("Duży plik – optymalizacja zostanie wykonana po stronie serwera (Mux).");
-        fileToUpload = cleanFile;
-        isProcessed = false;
-      } else if (isMp4) {
-        try {
-          // Step 1: Quick check using only first 64KB
-          const headerSlice = cleanFile.slice(0, 65536);
-          const headerBuffer = await headerSlice.arrayBuffer();
-
-          const isFast = quickCheck(headerBuffer);
-          console.log("Is faststart:", isFast);
-
-          if (!isFast) {
-            // Need to process — safely read full file (may OOM on edge cases)
-            let fullBuffer: ArrayBuffer;
-            try {
-              fullBuffer = await cleanFile.arrayBuffer();
-            } catch (allocErr) {
-              console.error("arrayBuffer() failed (likely OOM), skipping faststart:", allocErr);
-              toast.info("Pominięto optymalizację (Mux dokończy po stronie serwera).");
-              fileToUpload = cleanFile;
-              isProcessed = false;
-              throw new Error("__skip_faststart__");
-            }
-
-            const SIZE_100MB = 100 * 1024 * 1024;
-            let processedBuffer: ArrayBuffer;
-
-            if (cleanFile.size < SIZE_100MB) {
-              processedBuffer = relocateMoovToStart(fullBuffer);
-            } else {
-              console.log("Starting faststart worker for file size:", cleanFile.size);
-              toast.info("Optymalizacja wideo dla szybkiego odtwarzania...");
-              processedBuffer = await processFileInWorker(fullBuffer);
-              console.log("Worker done, processed size:", processedBuffer.byteLength);
-            }
-
-            fileToUpload = new File([processedBuffer], cleanFile.name, {
-              type: cleanFile.type || "video/mp4",
-            });
-            isProcessed = true;
-          }
-        } catch (err: any) {
-          if (err?.message !== "__skip_faststart__") {
-            console.error("Worker/faststart failed:", err);
-            toast.info("Pominięto optymalizację (Mux dokończy po stronie serwera).");
-            fileToUpload = cleanFile;
-            isProcessed = false;
-          }
-        }
-      }
-
-      // Upload file with real progress
-      console.log("Starting TUS upload, file size:", fileToUpload.size, "storage path:", storagePath);
-      onProgress?.(0);
-      await uploadFileTus(fileToUpload, storagePath, onProgress);
-
-      // Verify the object actually landed in storage before creating a DB row.
-      // Otherwise we'd create a "ghost" video that submit-to-mux can't sign.
-      const { data: headData, error: headErr } = await supabase.storage
-        .from("videos")
-        .list("", { search: storagePath, limit: 1 });
-      if (headErr || !headData || headData.length === 0) {
-        const msg = "Plik nie pojawił się w magazynie po wysyłce. Spróbuj ponownie.";
-        toast.error("Upload niekompletny", { description: msg });
-        throw new Error(msg);
-      }
-
-      // Insert metadata (90-95%)
-      onProgress?.(91);
-      console.log("Inserting to DB, is_processed:", isProcessed);
       const title = file.name.replace(/\.[^/.]+$/, "");
+
+      // Create DB row with status='uploading' BEFORE the upload starts.
+      // If the upload fails or is cancelled, the row gets cleaned up below.
       const { data: inserted, error: insertError } = await supabase
         .from("videos")
         .insert({
@@ -445,51 +447,104 @@ export function useVideoStore() {
           size: file.size,
           folder_id: folderId,
           storage_path: storagePath,
-          is_processed: isProcessed,
-          processing_status: isProcessed ? "ready" : "pending",
+          is_processed: false,
+          processing_status: "uploading",
           aspect_ratio: aspectRatio || "16:9",
         } as any)
         .select()
         .single();
 
-      if (insertError) {
-        console.error("DB insert error:", insertError);
-        toast.error("Błąd bazy danych", { description: insertError.message });
-        throw insertError;
+      if (insertError || !inserted) {
+        console.error("[upload] DB insert (uploading) failed", insertError);
+        toast.error("Błąd bazy danych", { description: insertError?.message });
+        throw insertError ?? new Error("DB insert failed");
       }
-      onProgress?.(95);
 
-      const videoItem: VideoItem = {
-        ...inserted,
-        thumbnail_url: null,
-        is_processed: isProcessed,
-        processing_status: isProcessed ? "ready" : "pending",
-      } as VideoItem;
-
-      // Generate thumbnail in background (non-blocking)
-      generateThumbnail(file, inserted.id).then((thumbUrl) => {
-        if (thumbUrl) {
-          setVideos((prev) => prev.map((v) => v.id === inserted.id ? { ...v, thumbnail_url: thumbUrl } : v));
+      const videoId = inserted.id;
+      const cleanupOnFailure = async (status: "failed" | null) => {
+        try { await supabase.storage.from("videos").remove([storagePath]); } catch {}
+        if (status === "failed") {
+          await supabase.from("videos").update({ processing_status: "failed" }).eq("id", videoId);
+        } else {
+          await supabase.from("videos").delete().eq("id", videoId);
         }
-      });
+      };
 
-      // Submit to Mux for HLS transcoding (fire-and-forget)
-      supabase.functions.invoke("submit-to-mux", {
-        body: { video_id: inserted.id, storage_path: storagePath },
-      }).then(({ error }) => {
-        if (error) console.error("Mux submit error (non-blocking):", error);
-        else console.log("Submitted to Mux for processing:", inserted.id);
-      });
+      try {
+        // Choose transport based on size.
+        if (file.size > TUS_THRESHOLD) {
+          await uploadFileTus(file, storagePath, { onProgress, signal });
+        } else {
+          await uploadFileStandard(file, storagePath, "videos", onProgress);
+        }
 
-      onProgress?.(100);
-      setVideos((prev) => [videoItem, ...prev]);
+        // INTEGRITY CHECK: storage object size MUST equal original file size.
+        // Anything else means truncation / silent corruption — abort.
+        const { data: headData, error: headErr } = await supabase.storage
+          .from("videos")
+          .list("", { search: storagePath, limit: 1 });
 
-      // Subscribe for real-time status updates if still processing
-      if (!isProcessed) {
-        subscribeToProcessingStatus(inserted.id);
+        if (headErr || !headData || headData.length === 0) {
+          throw new Error("Plik nie pojawił się w magazynie po wysyłce.");
+        }
+        const storedSize = (headData[0] as any)?.metadata?.size as number | undefined;
+        if (typeof storedSize === "number" && storedSize !== file.size) {
+          console.error("[upload] size mismatch", {
+            fileName: file.name,
+            originalSize: file.size,
+            storedSize,
+            delta: file.size - storedSize,
+          });
+          throw new Error(
+            `Niezgodność rozmiaru: wysłano ${file.size} B, w magazynie ${storedSize} B. Plik mógł zostać uszkodzony – spróbuj ponownie.`
+          );
+        }
+
+        // Mark as uploaded (Mux will move it to "processing"/"ready").
+        await supabase
+          .from("videos")
+          .update({ processing_status: "pending" })
+          .eq("id", videoId);
+
+        const videoItem: VideoItem = {
+          ...inserted,
+          thumbnail_url: null,
+          is_processed: false,
+          processing_status: "pending",
+        } as VideoItem;
+
+        // Generate thumbnail (non-blocking)
+        generateThumbnail(file, videoId).then((thumbUrl) => {
+          if (thumbUrl) {
+            setVideos((prev) => prev.map((v) => v.id === videoId ? { ...v, thumbnail_url: thumbUrl } : v));
+          }
+        });
+
+        // Submit to Mux for HLS transcoding (fire-and-forget)
+        supabase.functions.invoke("submit-to-mux", {
+          body: { video_id: videoId, storage_path: storagePath },
+        }).then(({ error }) => {
+          if (error) console.error("[upload] Mux submit error (non-blocking):", error);
+        });
+
+        setVideos((prev) => [videoItem, ...prev]);
+        subscribeToProcessingStatus(videoId);
+        return videoItem;
+      } catch (err: any) {
+        const isAbort = err?.name === "AbortError";
+        console.error("[upload] failed", {
+          fileName: file.name,
+          fileSize: file.size,
+          storagePath,
+          aborted: isAbort,
+          error: err?.message,
+        });
+        await cleanupOnFailure(isAbort ? null : "failed");
+        if (!isAbort) {
+          toast.error("Upload nieudany", { description: err?.message || "Nieznany błąd" });
+        }
+        throw err;
       }
-
-      return videoItem;
     },
     [subscribeToProcessingStatus]
   );
