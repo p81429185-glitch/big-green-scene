@@ -304,19 +304,25 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
         )}
 
         {/* Video error state */}
-        {videoError && !isLoading && (
-          <div className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4">
+        {(videoError || muxStatus === "error") && !isLoading && (
+          <div className="absolute inset-0 z-10 bg-muted rounded-lg flex flex-col items-center justify-center gap-4 p-6 text-center">
             <AlertCircle className="h-12 w-12 text-destructive" />
-            <div className="text-center">
-              <p className="text-lg font-medium">Błąd odtwarzania</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Nie udało się załadować wideo. Sprawdź połączenie i spróbuj ponownie.
+            <div>
+              <p className="text-lg font-medium">
+                {muxStatus === "error" ? "Plik został odrzucony przez przetwarzanie" : "Błąd odtwarzania"}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                {muxStatus === "error"
+                  ? "Wgrany plik jest uszkodzony lub w nieobsługiwanym formacie. Wgraj oryginalny plik jeszcze raz — najnowsza wersja aplikacji nie modyfikuje już bajtów wideo przed wysyłką."
+                  : "Nie udało się załadować wideo. Sprawdź połączenie i spróbuj ponownie."}
               </p>
             </div>
-            <Button onClick={handleRetry} variant="outline" className="mt-2">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Spróbuj ponownie
-            </Button>
+            {muxStatus !== "error" && (
+              <Button onClick={handleRetry} variant="outline" className="mt-2">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Spróbuj ponownie
+              </Button>
+            )}
           </div>
         )}
 
