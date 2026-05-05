@@ -10,6 +10,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { CompressionPrompt } from "./CompressionPrompt";
 
 const ACCEPTED_VIDEO = ".mp4,.mov,.avi,.mkv,.webm";
 const ACCEPTED_AUDIO = ".mp3,.m4a,.aac,.wav";
@@ -109,6 +110,10 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
   const [videoDragOver, setVideoDragOver] = useState(false);
   const [audioDragOver, setAudioDragOver] = useState(false);
 
+  // Compression state
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showCompressionPrompt, setShowCompressionPrompt] = useState(false);
+
   const handleFiles = useCallback(
     (files: FileList | File[]) => {
       setError(null);
@@ -118,11 +123,44 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
         setError(`Maksymalnie ${MAX_FILES} plików na raz`);
         return;
       }
+
+      // Single file >100MB → show compression prompt
+      if (arr.length === 1 && arr[0].size > 100 * 1024 * 1024) {
+        setPendingFile(arr[0]);
+        setShowCompressionPrompt(true);
+        return;
+      }
+
+      // Multiple files or small file → upload directly
       onFilesSelected(arr, aspectRatio);
       onOpenChange(false);
     },
     [onFilesSelected, onOpenChange, aspectRatio]
   );
+
+  const handleCompressed = useCallback(
+    (compressedFile: File) => {
+      setShowCompressionPrompt(false);
+      setPendingFile(null);
+      onFilesSelected([compressedFile], aspectRatio);
+      onOpenChange(false);
+    },
+    [onFilesSelected, onOpenChange, aspectRatio]
+  );
+
+  const handleSkipCompression = useCallback(() => {
+    if (pendingFile) {
+      setShowCompressionPrompt(false);
+      onFilesSelected([pendingFile], aspectRatio);
+      setPendingFile(null);
+      onOpenChange(false);
+    }
+  }, [pendingFile, onFilesSelected, onOpenChange, aspectRatio]);
+
+  const handleCancelCompression = useCallback(() => {
+    setShowCompressionPrompt(false);
+    setPendingFile(null);
+  }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -169,8 +207,17 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetState(); }}>
-      <DialogContent className="sm:max-w-lg border-border/50 bg-card/95 backdrop-blur-xl">
+    <>
+      {showCompressionPrompt && pendingFile && (
+        <CompressionPrompt
+          file={pendingFile}
+          onCompress={handleCompressed}
+          onSkip={handleSkipCompression}
+          onCancel={handleCancelCompression}
+        />
+      )}
+      <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetState(); }}>
+        <DialogContent className="sm:max-w-lg border-border/50 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle>Dodaj filmy</DialogTitle>
           <DialogDescription>Wybierz tryb przesyłania plików</DialogDescription>
@@ -305,6 +352,7 @@ const UploadDialog = ({ open, onOpenChange, onFilesSelected, onDualFilesSelected
         </Tabs>
       </DialogContent>
     </Dialog>
+    </>
   );
 };
 
