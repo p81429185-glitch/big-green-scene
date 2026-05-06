@@ -8,19 +8,20 @@ import { formatBytes, formatSpeed, formatEta } from "@/lib/uploadConstants";
 const StatusIcon = forwardRef<SVGSVGElement, { status: QueueItem["status"] }>(({ status }, ref) => {
   switch (status) {
     case "done":
-      return <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />;
+      return <CheckCircle2 ref={ref} className="h-4 w-4 text-primary shrink-0" />;
     case "uploading":
-      return <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />;
+      return <Loader2 ref={ref} className="h-4 w-4 text-primary shrink-0 animate-spin" />;
     case "processing":
-      return <Loader2 className="h-4 w-4 text-amber-500 shrink-0 animate-spin" />;
+      return <Loader2 ref={ref} className="h-4 w-4 text-amber-500 shrink-0 animate-spin" />;
     case "error":
-      return <AlertCircle className="h-4 w-4 text-destructive shrink-0" />;
+      return <AlertCircle ref={ref} className="h-4 w-4 text-destructive shrink-0" />;
     case "cancelled":
-      return <Ban className="h-4 w-4 text-muted-foreground shrink-0" />;
+      return <Ban ref={ref} className="h-4 w-4 text-muted-foreground shrink-0" />;
     default:
-      return <Clock className="h-4 w-4 text-muted-foreground shrink-0" />;
+      return <Clock ref={ref} className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
-};
+});
+StatusIcon.displayName = "StatusIcon";
 
 interface Props {
   queue: QueueItem[];
