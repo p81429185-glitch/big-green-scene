@@ -316,7 +316,7 @@ export function useVideoStore() {
         chunkSize: currentChunkSize,
         // 6 parallel chunks = 36MB in-flight (6MB × 6). Optimized for >50 Mbps uplink.
         // TUS spec allows arbitrary concurrency: https://tus.io/protocols/resumable-upload#upload-concatenation
-        parallelUploads: 3,
+        parallelUploads: 1,
         headers: {
           apikey: anonKey,
         },
