@@ -120,13 +120,20 @@ export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: Us
     setQueue((prev) =>
       prev.map((i) => {
         if (i.id !== itemId) return i;
-        const status: QueueItem["status"] = info.pct >= 99.9 ? "processing" : "uploading";
+        // Monotonic clamp: never let progress/bytes go backward
+        const nextProgress = Math.max(i.progress, info.pct);
+        const nextBytes = Math.max(i.bytesUploaded, info.bytesUploaded);
+        // Lock status: once processing, don't bounce back to uploading
+        let status: QueueItem["status"] = i.status;
+        if (i.status !== "processing" && i.status !== "done") {
+          status = nextProgress >= 99.9 ? "processing" : "uploading";
+        }
         return {
           ...i,
-          progress: info.pct,
-          bytesUploaded: info.bytesUploaded,
-          speed: info.speed,
-          eta: info.eta,
+          progress: nextProgress,
+          bytesUploaded: nextBytes,
+          speed: info.speed > 0 ? info.speed : i.speed,
+          eta: Number.isFinite(info.eta) ? Math.max(0, info.eta) : i.eta,
           status,
         };
       })
