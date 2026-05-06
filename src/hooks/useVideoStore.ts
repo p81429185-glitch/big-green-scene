@@ -302,6 +302,7 @@ export function useVideoStore() {
     let lastSampleBytes = 0;
     let smoothedSpeed = 0;
     let maxBytesUploaded = 0;
+    let lastEmitTs = 0;
 
     // Adaptive chunk sizing: measure speed, adjust for next upload
     let chunksSent = 0;
@@ -315,7 +316,7 @@ export function useVideoStore() {
         chunkSize: currentChunkSize,
         // 6 parallel chunks = 36MB in-flight (6MB × 6). Optimized for >50 Mbps uplink.
         // TUS spec allows arbitrary concurrency: https://tus.io/protocols/resumable-upload#upload-concatenation
-        parallelUploads: 6,
+        parallelUploads: 3,
         headers: {
           apikey: anonKey,
         },
@@ -405,7 +406,12 @@ export function useVideoStore() {
           const pct = bytesTotal > 0 ? Math.min(100, (reportedBytes / bytesTotal) * 100) : 0;
           const remaining = Math.max(0, bytesTotal - reportedBytes);
           const eta = smoothedSpeed > 0 ? Math.max(0, remaining / smoothedSpeed) : Infinity;
-          onProgress?.({ bytesUploaded: reportedBytes, bytesTotal, pct, speed: smoothedSpeed, eta });
+          // Throttle UI updates to ~4/s; always emit completion (100%).
+          const isComplete = reportedBytes >= bytesTotal;
+          if (isComplete || now - lastEmitTs >= 250) {
+            lastEmitTs = now;
+            onProgress?.({ bytesUploaded: reportedBytes, bytesTotal, pct, speed: smoothedSpeed, eta });
+          }
         },
         onSuccess: () => {
           console.info("[upload] TUS success", {
