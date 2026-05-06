@@ -487,41 +487,10 @@ export function useVideoStore() {
       const storagePath = `${crypto.randomUUID()}_${sanitizeFileName(file.name)}`;
       const title = file.name.replace(/\.[^/.]+$/, "");
 
-      // Create DB row with status='uploading' BEFORE the upload starts.
-      // If the upload fails or is cancelled, the row gets cleaned up below.
-      const { data: inserted, error: insertError } = await supabase
-        .from("videos")
-        .insert({
-          title,
-          file_name: file.name,
-          size: file.size,
-          folder_id: folderId,
-          storage_path: storagePath,
-          is_processed: false,
-          processing_status: "uploading",
-          aspect_ratio: aspectRatio || "16:9",
-        } as any)
-        .select()
-        .single();
-
-      if (insertError || !inserted) {
-        console.error("[upload] DB insert (uploading) failed", insertError);
-        toast.error("Błąd bazy danych", { description: insertError?.message });
-        throw insertError ?? new Error("DB insert failed");
-      }
-
-      const videoId = inserted.id;
-      const cleanupOnFailure = async (status: "failed" | null) => {
-        try { await supabase.storage.from("videos").remove([storagePath]); } catch {}
-        if (status === "failed") {
-          await supabase.from("videos").update({ processing_status: "failed" }).eq("id", videoId);
-        } else {
-          await supabase.from("videos").delete().eq("id", videoId);
-        }
-      };
-
+      // Upload FIRST. We do not create a DB row until the upload + integrity
+      // check pass. This prevents "ghost" rows that point to non-existent
+      // storage objects (e.g. user closes tab mid-upload).
       try {
-        // Choose transport based on size.
         if (file.size > TUS_THRESHOLD) {
           await uploadFileTus(file, storagePath, { onProgress, signal });
         } else {
@@ -529,7 +498,6 @@ export function useVideoStore() {
         }
 
         // INTEGRITY CHECK: storage object size MUST equal original file size.
-        // Anything else means truncation / silent corruption — abort.
         const { data: headData, error: headErr } = await supabase.storage
           .from("videos")
           .list("", { search: storagePath, limit: 1 });
@@ -545,17 +513,36 @@ export function useVideoStore() {
             storedSize,
             delta: file.size - storedSize,
           });
+          try { await supabase.storage.from("videos").remove([storagePath]); } catch {}
           throw new Error(
             `Niezgodność rozmiaru: wysłano ${file.size} B, w magazynie ${storedSize} B. Plik mógł zostać uszkodzony – spróbuj ponownie.`
           );
         }
 
-        // Mark as uploaded (Mux will move it to "processing"/"ready").
-        await supabase
+        // Now create the DB row.
+        const { data: inserted, error: insertError } = await supabase
           .from("videos")
-          .update({ processing_status: "pending" })
-          .eq("id", videoId);
+          .insert({
+            title,
+            file_name: file.name,
+            size: file.size,
+            folder_id: folderId,
+            storage_path: storagePath,
+            is_processed: false,
+            processing_status: "pending",
+            aspect_ratio: aspectRatio || "16:9",
+          } as any)
+          .select()
+          .single();
 
+        if (insertError || !inserted) {
+          console.error("[upload] DB insert failed after upload", insertError);
+          try { await supabase.storage.from("videos").remove([storagePath]); } catch {}
+          toast.error("Błąd bazy danych", { description: insertError?.message });
+          throw insertError ?? new Error("DB insert failed");
+        }
+
+        const videoId = inserted.id;
         const videoItem: VideoItem = {
           ...inserted,
           thumbnail_url: null,
@@ -589,7 +576,7 @@ export function useVideoStore() {
           aborted: isAbort,
           error: err?.message,
         });
-        await cleanupOnFailure(isAbort ? null : "failed");
+        try { await supabase.storage.from("videos").remove([storagePath]); } catch {}
         if (!isAbort) {
           toast.error("Upload nieudany", { description: err?.message || "Nieznany błąd" });
         }
