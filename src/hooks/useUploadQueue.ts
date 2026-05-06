@@ -116,11 +116,23 @@ export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: Us
     }, 0) / totalCount
   );
 
-  const updateProgress = useCallback((itemId: string, info: UploadProgressInfo) => {
+  // Batch progress updates via requestAnimationFrame so high-frequency TUS
+  // callbacks never trigger more than one React render per frame.
+  const pendingProgressRef = useRef<Map<string, UploadProgressInfo>>(new Map());
+  const rafRef = useRef<number | null>(null);
+
+  const flushProgress = useCallback(() => {
+    rafRef.current = null;
+    const pending = pendingProgressRef.current;
+    if (pending.size === 0) return;
+    const updates = new Map(pending);
+    pending.clear();
+
     setQueue((prev) => {
       let changed = false;
       const next = prev.map((i) => {
-        if (i.id !== itemId) return i;
+        const info = updates.get(i.id);
+        if (!info) return i;
         const nextProgress = Math.max(i.progress, info.pct);
         const nextBytes = Math.max(i.bytesUploaded, info.bytesUploaded);
         let status: QueueItem["status"] = i.status;
@@ -129,14 +141,12 @@ export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: Us
         }
         const nextSpeed = info.speed > 0 ? info.speed : i.speed;
         const nextEta = Number.isFinite(info.eta) ? Math.max(0, info.eta) : i.eta;
-        // Skip no-op updates (avoids re-renders that can freeze UI under load)
-        const progressDelta = Math.abs(nextProgress - i.progress);
-        const bytesDelta = nextBytes - i.bytesUploaded;
+
+        // Skip if nothing visible changed (compare rounded % shown in UI).
         if (
           status === i.status &&
-          progressDelta < 0.5 &&
-          bytesDelta < 64 * 1024 &&
-          Math.abs(nextSpeed - i.speed) < i.speed * 0.1
+          Math.round(nextProgress) === Math.round(i.progress) &&
+          nextBytes - i.bytesUploaded < 256 * 1024
         ) {
           return i;
         }
@@ -152,6 +162,19 @@ export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: Us
       });
       return changed ? next : prev;
     });
+  }, []);
+
+  const updateProgress = useCallback((itemId: string, info: UploadProgressInfo) => {
+    pendingProgressRef.current.set(itemId, info);
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(flushProgress);
+    }
+  }, [flushProgress]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
   }, []);
 
   useEffect(() => {
