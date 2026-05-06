@@ -117,27 +117,41 @@ export function useUploadQueue({ uploadVideo, uploadVideoWithSeparateAudio }: Us
   );
 
   const updateProgress = useCallback((itemId: string, info: UploadProgressInfo) => {
-    setQueue((prev) =>
-      prev.map((i) => {
+    setQueue((prev) => {
+      let changed = false;
+      const next = prev.map((i) => {
         if (i.id !== itemId) return i;
-        // Monotonic clamp: never let progress/bytes go backward
         const nextProgress = Math.max(i.progress, info.pct);
         const nextBytes = Math.max(i.bytesUploaded, info.bytesUploaded);
-        // Lock status: once processing, don't bounce back to uploading
         let status: QueueItem["status"] = i.status;
         if (i.status !== "processing" && i.status !== "done") {
           status = nextProgress >= 99.9 ? "processing" : "uploading";
         }
+        const nextSpeed = info.speed > 0 ? info.speed : i.speed;
+        const nextEta = Number.isFinite(info.eta) ? Math.max(0, info.eta) : i.eta;
+        // Skip no-op updates (avoids re-renders that can freeze UI under load)
+        const progressDelta = Math.abs(nextProgress - i.progress);
+        const bytesDelta = nextBytes - i.bytesUploaded;
+        if (
+          status === i.status &&
+          progressDelta < 0.5 &&
+          bytesDelta < 64 * 1024 &&
+          Math.abs(nextSpeed - i.speed) < i.speed * 0.1
+        ) {
+          return i;
+        }
+        changed = true;
         return {
           ...i,
           progress: nextProgress,
           bytesUploaded: nextBytes,
-          speed: info.speed > 0 ? info.speed : i.speed,
-          eta: Number.isFinite(info.eta) ? Math.max(0, info.eta) : i.eta,
+          speed: nextSpeed,
+          eta: nextEta,
           status,
         };
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
   }, []);
 
   useEffect(() => {

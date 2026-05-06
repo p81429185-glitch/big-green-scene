@@ -1,25 +1,27 @@
+import { forwardRef } from "react";
 import { CheckCircle2, AlertCircle, Upload, Loader2, Clock, ChevronDown, ChevronUp, X, Ban } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { QueueItem } from "@/hooks/useUploadQueue";
 import { formatBytes, formatSpeed, formatEta } from "@/lib/uploadConstants";
 
-const StatusIcon = ({ status }: { status: QueueItem["status"] }) => {
+const StatusIcon = forwardRef<SVGSVGElement, { status: QueueItem["status"] }>(({ status }, ref) => {
   switch (status) {
     case "done":
-      return <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />;
+      return <CheckCircle2 ref={ref} className="h-4 w-4 text-primary shrink-0" />;
     case "uploading":
-      return <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />;
+      return <Loader2 ref={ref} className="h-4 w-4 text-primary shrink-0 animate-spin" />;
     case "processing":
-      return <Loader2 className="h-4 w-4 text-amber-500 shrink-0 animate-spin" />;
+      return <Loader2 ref={ref} className="h-4 w-4 text-amber-500 shrink-0 animate-spin" />;
     case "error":
-      return <AlertCircle className="h-4 w-4 text-destructive shrink-0" />;
+      return <AlertCircle ref={ref} className="h-4 w-4 text-destructive shrink-0" />;
     case "cancelled":
-      return <Ban className="h-4 w-4 text-muted-foreground shrink-0" />;
+      return <Ban ref={ref} className="h-4 w-4 text-muted-foreground shrink-0" />;
     default:
-      return <Clock className="h-4 w-4 text-muted-foreground shrink-0" />;
+      return <Clock ref={ref} className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
-};
+});
+StatusIcon.displayName = "StatusIcon";
 
 interface Props {
   queue: QueueItem[];
@@ -33,7 +35,7 @@ interface Props {
   overallProgress: number;
 }
 
-const UploadQueue = ({
+const UploadQueue = forwardRef<HTMLDivElement, Props>(({
   queue,
   minimized,
   onToggleMinimize,
@@ -43,11 +45,11 @@ const UploadQueue = ({
   doneCount,
   totalCount,
   overallProgress,
-}: Props) => {
+}, ref) => {
   if (queue.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[22rem] max-w-[calc(100vw-2rem)] bg-background border rounded-xl shadow-lg overflow-hidden">
+    <div ref={ref} className="fixed bottom-4 right-4 z-50 w-[22rem] max-w-[calc(100vw-2rem)] bg-background border rounded-xl shadow-lg overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -135,6 +137,7 @@ const UploadQueue = ({
       )}
     </div>
   );
-};
+});
+UploadQueue.displayName = "UploadQueue";
 
 export default UploadQueue;
