@@ -81,9 +81,10 @@ interface VideoLoadingWrapperProps {
   audioTrackUrl: string | null;
   aspectRatio: string;
   storagePath: string;
+  processingStatus?: string;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio, storagePath }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio, storagePath, processingStatus }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
