@@ -33,7 +33,7 @@ interface Props {
   overallProgress: number;
 }
 
-const UploadQueue = forwardRef<HTMLDivElement, Props>(({
+function UploadQueue({
   queue,
   minimized,
   onToggleMinimize,
@@ -43,11 +43,11 @@ const UploadQueue = forwardRef<HTMLDivElement, Props>(({
   doneCount,
   totalCount,
   overallProgress,
-}, ref) => {
+}: Props) {
   if (queue.length === 0) return null;
 
   return (
-    <div ref={ref} className="fixed bottom-4 right-4 z-50 w-[22rem] max-w-[calc(100vw-2rem)] bg-background border rounded-xl shadow-lg overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-50 w-[22rem] max-w-[calc(100vw-2rem)] bg-background border rounded-xl shadow-lg overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -135,7 +135,6 @@ const UploadQueue = forwardRef<HTMLDivElement, Props>(({
       )}
     </div>
   );
-});
-UploadQueue.displayName = "UploadQueue";
+}
 
 export default UploadQueue;
