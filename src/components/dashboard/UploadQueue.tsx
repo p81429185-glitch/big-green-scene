@@ -1,10 +1,11 @@
+import { forwardRef } from "react";
 import { CheckCircle2, AlertCircle, Upload, Loader2, Clock, ChevronDown, ChevronUp, X, Ban } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { QueueItem } from "@/hooks/useUploadQueue";
 import { formatBytes, formatSpeed, formatEta } from "@/lib/uploadConstants";
 
-const StatusIcon = ({ status }: { status: QueueItem["status"] }) => {
+const StatusIcon = forwardRef<SVGSVGElement, { status: QueueItem["status"] }>(({ status }, ref) => {
   switch (status) {
     case "done":
       return <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />;
