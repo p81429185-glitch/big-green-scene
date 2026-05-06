@@ -301,6 +301,7 @@ export function useVideoStore() {
     let lastSampleTs = startTs;
     let lastSampleBytes = 0;
     let smoothedSpeed = 0;
+    let maxBytesUploaded = 0;
 
     // Adaptive chunk sizing: measure speed, adjust for next upload
     let chunksSent = 0;
@@ -352,14 +353,21 @@ export function useVideoStore() {
           reject(new Error(`Upload failed: ${error.message}`));
         },
         onProgress: (bytesUploaded, bytesTotal) => {
+          // Monotonic clamp: tus parallelUploads can briefly report a lower
+          // bytesUploaded when a chunk retries. Never let UI go backward.
+          if (bytesUploaded > maxBytesUploaded) maxBytesUploaded = bytesUploaded;
+          const reportedBytes = maxBytesUploaded;
+
           const now = Date.now();
           const dt = (now - lastSampleTs) / 1000;
           if (dt >= 0.5) {
-            const inst = (bytesUploaded - lastSampleBytes) / dt;
-            // EMA smoothing
-            smoothedSpeed = smoothedSpeed === 0 ? inst : smoothedSpeed * 0.7 + inst * 0.3;
+            const inst = (reportedBytes - lastSampleBytes) / dt;
+            // Ignore negative/zero samples (chunk retry artifacts)
+            if (inst > 0) {
+              smoothedSpeed = smoothedSpeed === 0 ? inst : smoothedSpeed * 0.7 + inst * 0.3;
+            }
             lastSampleTs = now;
-            lastSampleBytes = bytesUploaded;
+            lastSampleBytes = reportedBytes;
 
             // Track speed for adaptive chunk sizing
             chunksSent++;
@@ -394,10 +402,10 @@ export function useVideoStore() {
               }
             }
           }
-          const pct = bytesTotal > 0 ? (bytesUploaded / bytesTotal) * 100 : 0;
-          const remaining = bytesTotal - bytesUploaded;
-          const eta = smoothedSpeed > 0 ? remaining / smoothedSpeed : Infinity;
-          onProgress?.({ bytesUploaded, bytesTotal, pct, speed: smoothedSpeed, eta });
+          const pct = bytesTotal > 0 ? Math.min(100, (reportedBytes / bytesTotal) * 100) : 0;
+          const remaining = Math.max(0, bytesTotal - reportedBytes);
+          const eta = smoothedSpeed > 0 ? Math.max(0, remaining / smoothedSpeed) : Infinity;
+          onProgress?.({ bytesUploaded: reportedBytes, bytesTotal, pct, speed: smoothedSpeed, eta });
         },
         onSuccess: () => {
           console.info("[upload] TUS success", {

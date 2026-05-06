@@ -1,49 +1,41 @@
-## Diagnoza (z trzeciej perspektywy)
+## Problem
 
-Aktualny film, który oglądasz (`0beb09b0-727d-43fd-b51a-7bd677aa32f9`), ma w bazie status `uploading` i `mux_status=pending`, ale **w storage nie ma żadnego pliku**. Edge function `submit-to-mux` loguje `Object not found` co kilka sekund — bo `VideoPlayer` automatycznie wywołuje `submit-to-mux` za każdym razem, gdy widzi `mux_status=pending`.
+The upload progress bar visibly jumps backward and glitches during large uploads (visible in the screenshot at 9% / 3.9 MB of 43.5 MB). The percentage drops, ETA flickers, and the bar appears to "rewind."
 
-Przyczyna źródłowa: w `useVideoStore.uploadVideo` rekord w `videos` jest tworzony **PRZED** rozpoczęciem uploadu (status `uploading`). Jeśli upload TUS się nie zakończy (zamknięcie karty, reload, błąd sieci po zerwaniu połączenia), rekord zostaje (cleanup leci tylko w bloku `catch`, który nie wykona się gdy karta zniknie). Efekt: „duch" w bazie + wieczne 500 z Mux + komunikat o błędzie odtwarzania.
+## Root cause
 
-Drugi problem: build się sypie na `useVideoCompression.ts:216` (TS2322 BlobPart vs Uint8Array) — to blokuje rebuild po naszych ostatnich zmianach.
+In `src/hooks/useVideoStore.ts`, the TUS upload runs with `parallelUploads: 6`. The `tus-js-client` `onProgress` callback sums `bytesUploaded` across all 6 in-flight chunks. When a chunk fails and retries (very common on flaky networks or when the server rejects a chunk), its already-counted bytes are subtracted, so `bytesUploaded` legitimately decreases. The same happens briefly when chunks reorder.
 
-## Plan naprawy
+Currently in `useUploadQueue.ts → updateProgress` and `useVideoStore.ts → onProgress`, every reported value is forwarded to the UI verbatim. Result:
+- progress bar moves backward
+- speed sample becomes negative → EMA goes haywire → ETA flickers between huge values and `Infinity`
+- status briefly bounces between `uploading` and `processing` near the end (the `pct >= 99.9 → processing` rule re-fires)
 
-### 1. Zmiana cyklu życia rekordu video (`src/hooks/useVideoStore.ts`)
-- **Nie tworzyć rekordu w bazie przed uploadem.** Najpierw TUS upload do storage → integrity check (size match) → dopiero wtedy `insert` z `processing_status='pending'`.
-- Postęp uploadu trzymamy lokalnie w `useUploadQueue` (już tak działa) — nie potrzebujemy rekordu DB do pokazania paska.
-- Jeśli upload się wywali / zostanie anulowany: usuwamy plik ze storage, **bez** śmieciowego rekordu w DB.
-- To samo dla `uploadVideoWithSeparateAudio` (już prawie tak działa, drobne porządki).
+## Fix (surgical, UI-layer only)
 
-### 2. Twardszy `submit-to-mux` (`supabase/functions/submit-to-mux/index.ts`)
-- Jeśli `createSignedUrl` zwraca `Object not found`: oznaczyć rekord jako `processing_status='failed'`, `mux_status='error'` zamiast tylko zwracać 500.
-- Dzięki temu jeden taki przypadek nie będzie ścigał logów co kilka sekund.
+1. **Monotonic progress in TUS `onProgress`** (`useVideoStore.ts`)
+   - Track `maxBytesUploaded` per upload. Clamp the reported `bytesUploaded` to never decrease.
+   - Skip negative speed samples (when `inst < 0`, don't update EMA).
+   - Compute `pct` from the clamped value.
 
-### 3. Bezpieczniejszy auto-submit w playerze (`src/pages/VideoPlayer.tsx:110-119`)
-- Auto-wywołanie `submit-to-mux` tylko gdy `processing_status === 'pending'` (nie `'uploading'` i nie `'failed'`).
-- Po pierwszej nieudanej próbie (response.error) nie ponawiać w tej samej sesji.
-- Dla `processing_status='uploading'` lub `'failed'` bez `mux_playback_id` pokazać czytelny komunikat „Upload nie został zakończony — wgraj plik ponownie".
+2. **Defensive clamp in queue** (`useUploadQueue.ts → updateProgress`)
+   - Never let `progress` decrease for the same item.
+   - Never let `bytesUploaded` decrease.
+   - Don't flip back from `processing` to `uploading` — once an item enters `processing`, it stays there until `done`/`error`.
 
-### 4. Fix błędu buildu (`src/hooks/useVideoCompression.ts:216`)
-- `new Blob([data], ...)` — `data` z ffmpeg to `FileData` (`Uint8Array<SharedArrayBuffer>`). Zmiana na `new Blob([data as BlobPart], ...)` lub konwersja przez `new Uint8Array(data).buffer`.
+3. **Smoother ETA**
+   - Floor `eta` display at 0 and ignore samples where smoothedSpeed <= 0.
+   - Keep the existing EMA, just guard inputs.
 
-### 5. Posprzątanie aktualnych „duchów" w bazie
-- Usunąć/oznaczyć jako `failed` rekordy bez obiektu w storage:
-  - `0beb09b0-727d-43fd-b51a-7bd677aa32f9` — aktualnie oglądany, status `uploading`, brak pliku.
-  - `560c8ccc-578f-4221-88a9-92854e5a2c0a` — `failed`, brak pliku (do usunięcia).
-  - `365c65d4-06a4-4414-a950-e691fdc61314` — `uploading`, brak pliku.
-  - `e4de2112-0e88-4b5e-b75f-25bf27f0d620` — `ready` ale brak pliku i `mux_asset_id`, do usunięcia.
+No changes to upload protocol, chunk size, parallelism, DB lifecycle, or visual design. Pure progress-reporting hardening.
 
-### 6. Weryfikacja po wdrożeniu
-- Sprawdzenie logów `submit-to-mux` (powinny przestać spamować `Object not found`).
-- Wgranie nowego pliku >300 MB i potwierdzenie, że rekord pojawia się dopiero po skutecznym uploadzie z poprawnym `stored_size === file.size`.
-- Build przechodzi czysto.
+## Files to edit
 
-## Pliki do zmiany
-- `src/hooks/useVideoStore.ts` — przeniesienie `insert` po udanym uploadzie + integrity checku
-- `src/hooks/useVideoCompression.ts` — fix typu Blob
-- `src/pages/VideoPlayer.tsx` — gating auto-submit i komunikat dla `uploading`/`failed`
-- `supabase/functions/submit-to-mux/index.ts` — oznaczanie failed gdy brak obiektu
-- migracja DB — czyszczenie duchów
+- `src/hooks/useVideoStore.ts` — clamp `bytesUploaded`, ignore negative speed samples in the TUS `onProgress` block.
+- `src/hooks/useUploadQueue.ts` — clamp `progress`/`bytesUploaded` and lock status transitions in `updateProgress`.
 
-## Efekt
-Po wdrożeniu: brak rekordów-duchów, brak nieskończonych 500, czytelny komunikat dla niedokończonych uploadów, build zielony.
+## Verification
+
+- Upload a 1 GB file on a throttled connection (DevTools → Network → Slow 4G).
+- Watch the queue widget: progress should only ever increase or hold; speed/ETA should not flicker to negative or `Infinity` mid-upload.
+- Confirm final transition is `uploading → processing → done` with no bounce.
