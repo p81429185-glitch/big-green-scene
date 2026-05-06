@@ -81,9 +81,10 @@ interface VideoLoadingWrapperProps {
   audioTrackUrl: string | null;
   aspectRatio: string;
   storagePath: string;
+  processingStatus?: string;
 }
 
-const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio, storagePath }: VideoLoadingWrapperProps) => {
+const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, isProcessed, fileSize, muxStatus, muxPlaybackId, muxAssetId, audioTrackUrl, aspectRatio, storagePath, processingStatus }: VideoLoadingWrapperProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -107,16 +108,16 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     // #endregion
   }, [videoId, muxStatus, muxPlaybackId, muxAssetId, isMuxReady, isMuxProcessing, isProcessed, src]);
 
-  // Auto-submit to Mux if not yet submitted
+  // Auto-submit to Mux if not yet submitted (only for fully uploaded videos)
   useEffect(() => {
     if (autoSubmittedRef.current) return;
-    if (!muxAssetId && muxStatus === "pending") {
+    if (!muxAssetId && muxStatus === "pending" && processingStatus !== "uploading" && processingStatus !== "failed") {
       autoSubmittedRef.current = true;
       supabase.functions.invoke("submit-to-mux", {
         body: { video_id: videoId, storage_path: storagePath },
       }).catch(() => {});
     }
-  }, [videoId, muxAssetId, muxStatus, storagePath]);
+  }, [videoId, muxAssetId, muxStatus, storagePath, processingStatus]);
 
   const clearBufferTimeout = useCallback(() => {
     if (bufferTimeoutRef.current) {

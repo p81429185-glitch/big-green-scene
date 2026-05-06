@@ -19,6 +19,13 @@ async function submitSingleVideoToMux(
 
   if (signError || !signedData?.signedUrl) {
     console.error("Signed URL error for", videoId, signError);
+    const status = (signError as any)?.statusCode || (signError as any)?.status;
+    if (status === "404" || status === 404 || status === 400) {
+      await supabaseAdmin
+        .from("videos")
+        .update({ processing_status: "failed", mux_status: "error" })
+        .eq("id", videoId);
+    }
     return { success: false, error: "Failed to create signed URL" };
   }
 
