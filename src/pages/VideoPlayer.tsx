@@ -107,16 +107,17 @@ const VideoLoadingWrapper = ({ src, poster, subtitlesSrt, videoId, playerRef, is
     // #endregion
   }, [videoId, muxStatus, muxPlaybackId, muxAssetId, isMuxReady, isMuxProcessing, isProcessed, src]);
 
-  // Auto-submit to Mux if not yet submitted
+  // Auto-submit to Mux if not yet submitted (only for fully uploaded videos)
   useEffect(() => {
     if (autoSubmittedRef.current) return;
-    if (!muxAssetId && muxStatus === "pending") {
+    const procStatus = (video as any)?.processing_status;
+    if (!muxAssetId && muxStatus === "pending" && procStatus !== "uploading" && procStatus !== "failed") {
       autoSubmittedRef.current = true;
       supabase.functions.invoke("submit-to-mux", {
         body: { video_id: videoId, storage_path: storagePath },
       }).catch(() => {});
     }
-  }, [videoId, muxAssetId, muxStatus, storagePath]);
+  }, [videoId, muxAssetId, muxStatus, storagePath, video]);
 
   const clearBufferTimeout = useCallback(() => {
     if (bufferTimeoutRef.current) {

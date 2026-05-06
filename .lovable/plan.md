@@ -1,51 +1,49 @@
-Zrobiłem analizę „z trzeciej perspektywy” po kodzie, bazie i logach. To nie jest już tylko problem webhooka.
+## Diagnoza (z trzeciej perspektywy)
 
-Co widzę teraz:
-- Najnowszy film „wszystko o bonusach...” ma dwa wpisy:
-  - jeden wpis ma `mux_asset_id = null`, ale obiektu w storage w ogóle nie ma. `submit-to-mux` loguje: `Signed URL error ... Object not found`.
-  - drugi wpis ma obiekt w storage i `mux_asset_id`, ale po ręcznym sync Mux zwrócił status `errored`, więc Mux nie był w stanie przetworzyć tego pliku.
-- Dla błędnych dużych plików obiekt w storage jest dokładnie o 58 bajtów mniejszy niż oryginalny plik. To mocno wskazuje, że nasz client-side metadata stripping wycina atom MP4 z początku pliku i psuje offsety wideo.
-- Kod uploadu ma też drugi błąd: TUS resume używa domyślnego fingerprintu zależnego od nazwy/rozmiaru/pliku, ale nie od `storagePath`. Przy ponownym wrzuceniu tego samego pliku może wznowić stary upload do starej ścieżki, a potem baza tworzy nowy wpis z nową ścieżką, gdzie obiektu nie ma. Stąd wpisy `pending`, których nie da się wysłać do Mux, bo plik fizycznie nie istnieje.
+Aktualny film, który oglądasz (`0beb09b0-727d-43fd-b51a-7bd677aa32f9`), ma w bazie status `uploading` i `mux_status=pending`, ale **w storage nie ma żadnego pliku**. Edge function `submit-to-mux` loguje `Object not found` co kilka sekund — bo `VideoPlayer` automatycznie wywołuje `submit-to-mux` za każdym razem, gdy widzi `mux_status=pending`.
 
-Plan naprawy:
+Przyczyna źródłowa: w `useVideoStore.uploadVideo` rekord w `videos` jest tworzony **PRZED** rozpoczęciem uploadu (status `uploading`). Jeśli upload TUS się nie zakończy (zamknięcie karty, reload, błąd sieci po zerwaniu połączenia), rekord zostaje (cleanup leci tylko w bloku `catch`, który nie wykona się gdy karta zniknie). Efekt: „duch" w bazie + wieczne 500 z Mux + komunikat o błędzie odtwarzania.
 
-1. Wyłączyć ryzykowne modyfikowanie dużych MP4 przed uploadem
-- W `src/hooks/useVideoStore.ts` dla plików powyżej bezpiecznego progu nie będziemy uruchamiać `stripVideoMetadata` ani FastStart.
-- Duże pliki pójdą do storage bajt-w-bajt takie, jakie wybrał użytkownik.
-- Mux dostanie oryginalny plik i sam zrobi HLS/transkodowanie.
+Drugi problem: build się sypie na `useVideoCompression.ts:216` (TS2322 BlobPart vs Uint8Array) — to blokuje rebuild po naszych ostatnich zmianach.
 
-2. Naprawić `stripVideoMetadata`, żeby nie korumpował MP4
-- W `src/lib/stripVideoMetadata.ts` zmienię logikę tak, aby nie usuwała atomów `meta/udta` z `moov`, jeśli `moov` jest przed `mdat`.
-- To jest dokładnie przypadek, w którym usunięcie nawet 58 bajtów przesuwa dane medialne, a offsety w `stco/co64` zostają stare, przez co Mux widzi uszkodzone media.
-- Dla małych plików też dodam tę ochronę, żeby problem nie wrócił w innym rozmiarze.
+## Plan naprawy
 
-3. Naprawić TUS resume, żeby nie tworzył pustych/nieistniejących wpisów
-- W `uploadFileTus` dodam własny `fingerprint`, który zawiera `bucket` i `storagePath`.
-- Dzięki temu upload może się wznawiać tylko dla tego samego docelowego obiektu, a nie dla „tego samego pliku” wrzucanego drugi raz do innej ścieżki.
-- To zatrzyma przypadek: upload wznowiony do starego obiektu, ale nowy wpis w bazie wskazuje na nieistniejącą ścieżkę.
+### 1. Zmiana cyklu życia rekordu video (`src/hooks/useVideoStore.ts`)
+- **Nie tworzyć rekordu w bazie przed uploadem.** Najpierw TUS upload do storage → integrity check (size match) → dopiero wtedy `insert` z `processing_status='pending'`.
+- Postęp uploadu trzymamy lokalnie w `useUploadQueue` (już tak działa) — nie potrzebujemy rekordu DB do pokazania paska.
+- Jeśli upload się wywali / zostanie anulowany: usuwamy plik ze storage, **bez** śmieciowego rekordu w DB.
+- To samo dla `uploadVideoWithSeparateAudio` (już prawie tak działa, drobne porządki).
 
-4. Zmienić moment dodawania wpisu do bazy, żeby uniknąć martwych rekordów
-- Po TUS uploadzie dodam weryfikację, że obiekt faktycznie istnieje w bucketcie `videos`, zanim utworzymy rekord `videos` i wyślemy go do Mux.
-- Jeśli obiekt nie istnieje, upload zakończy się czytelnym błędem zamiast tworzyć film, który później pokazuje „Błąd odtwarzania”.
+### 2. Twardszy `submit-to-mux` (`supabase/functions/submit-to-mux/index.ts`)
+- Jeśli `createSignedUrl` zwraca `Object not found`: oznaczyć rekord jako `processing_status='failed'`, `mux_status='error'` zamiast tylko zwracać 500.
+- Dzięki temu jeden taki przypadek nie będzie ścigał logów co kilka sekund.
 
-5. Poprawić sync i komunikat błędu Mux
-- `sync-mux-status` zostawi status `error` dla assetów, które Mux faktycznie oznaczył jako `errored`, zamiast pozwalać playerowi kręcić się w nieskończoność.
-- W playerze dodam osobny stan dla `mux_status = error`: informacja, że plik został odrzucony przez przetwarzanie, a nie zwykły „sprawdź połączenie”.
-- Dla `pending` bez obiektu pokażemy informację o niepełnym uploadzie, zamiast próbować odtwarzać pustą ścieżkę.
+### 3. Bezpieczniejszy auto-submit w playerze (`src/pages/VideoPlayer.tsx:110-119`)
+- Auto-wywołanie `submit-to-mux` tylko gdy `processing_status === 'pending'` (nie `'uploading'` i nie `'failed'`).
+- Po pierwszej nieudanej próbie (response.error) nie ponawiać w tej samej sesji.
+- Dla `processing_status='uploading'` lub `'failed'` bez `mux_playback_id` pokazać czytelny komunikat „Upload nie został zakończony — wgraj plik ponownie".
 
-6. Posprzątać aktualne uszkodzone wpisy
-- Po zmianach uruchomię sync/diagnostykę dla ostatnich filmów.
-- Wpis bez obiektu (`Object not found`) oznaczę jako failed albo usunę z widoku, żeby nie pojawiał się jako działający film.
-- Wpisy już odrzucone przez Mux są najprawdopodobniej nie do odzyskania bez oryginalnego pliku, bo storage zawiera już zmodyfikowany/uszkodzony MP4. Po naprawie trzeba wrzucić oryginalny plik jeszcze raz — tym razem bez modyfikacji bajtów po stronie przeglądarki.
+### 4. Fix błędu buildu (`src/hooks/useVideoCompression.ts:216`)
+- `new Blob([data], ...)` — `data` z ffmpeg to `FileData` (`Uint8Array<SharedArrayBuffer>`). Zmiana na `new Blob([data as BlobPart], ...)` lub konwersja przez `new Uint8Array(data).buffer`.
 
-Pliki do zmiany:
-- `src/hooks/useVideoStore.ts` — bezpieczny upload dużych plików, TUS fingerprint z `storagePath`, weryfikacja obiektu po uploadzie.
-- `src/lib/stripVideoMetadata.ts` — zabezpieczenie przed psuciem MP4, gdy `moov` jest przed `mdat`.
-- `src/pages/VideoPlayer.tsx` — czytelny stan dla `mux_status=error` i `pending` bez realnego pliku.
-- `supabase/functions/sync-mux-status/index.ts` — dopisanie lepszej informacji diagnostycznej z Mux, jeśli asset jest `errored`.
+### 5. Posprzątanie aktualnych „duchów" w bazie
+- Usunąć/oznaczyć jako `failed` rekordy bez obiektu w storage:
+  - `0beb09b0-727d-43fd-b51a-7bd677aa32f9` — aktualnie oglądany, status `uploading`, brak pliku.
+  - `560c8ccc-578f-4221-88a9-92854e5a2c0a` — `failed`, brak pliku (do usunięcia).
+  - `365c65d4-06a4-4414-a950-e691fdc61314` — `uploading`, brak pliku.
+  - `e4de2112-0e88-4b5e-b75f-25bf27f0d620` — `ready` ale brak pliku i `mux_asset_id`, do usunięcia.
 
-Efekt po wdrożeniu:
-- Nowe uploady >200 MB nie będą już korumpowane przez usuwanie metadanych.
-- Ponowne wrzucenie tego samego pliku nie będzie tworzyć martwych rekordów ze ścieżką, której nie ma w storage.
-- Player nie będzie pokazywał mylącego „Błąd odtwarzania” dla assetów odrzuconych przez Mux.
-- Aktualny zepsuty upload zostanie jasno oznaczony; działająca wersja będzie wymagała ponownego uploadu oryginału po poprawce, bo Mux już dostał uszkodzone bajty.
+### 6. Weryfikacja po wdrożeniu
+- Sprawdzenie logów `submit-to-mux` (powinny przestać spamować `Object not found`).
+- Wgranie nowego pliku >300 MB i potwierdzenie, że rekord pojawia się dopiero po skutecznym uploadzie z poprawnym `stored_size === file.size`.
+- Build przechodzi czysto.
+
+## Pliki do zmiany
+- `src/hooks/useVideoStore.ts` — przeniesienie `insert` po udanym uploadzie + integrity checku
+- `src/hooks/useVideoCompression.ts` — fix typu Blob
+- `src/pages/VideoPlayer.tsx` — gating auto-submit i komunikat dla `uploading`/`failed`
+- `supabase/functions/submit-to-mux/index.ts` — oznaczanie failed gdy brak obiektu
+- migracja DB — czyszczenie duchów
+
+## Efekt
+Po wdrożeniu: brak rekordów-duchów, brak nieskończonych 500, czytelny komunikat dla niedokończonych uploadów, build zielony.
