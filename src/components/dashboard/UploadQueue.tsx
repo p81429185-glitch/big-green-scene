@@ -35,7 +35,7 @@ interface Props {
   overallProgress: number;
 }
 
-const UploadQueue = ({
+const UploadQueue = forwardRef<HTMLDivElement, Props>(({
   queue,
   minimized,
   onToggleMinimize,
@@ -45,7 +45,7 @@ const UploadQueue = ({
   doneCount,
   totalCount,
   overallProgress,
-}: Props) => {
+}, ref) => {
   if (queue.length === 0) return null;
 
   return (
